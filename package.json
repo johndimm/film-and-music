@@ -5,6 +5,11 @@
     "apps/*",
     "packages/*"
   ],
+  "dependencies": {
+    "@google/genai": "^1.50.1",
+    "d3": "^7.9.0",
+    "lucide-react": "^0.560.0"
+  },
   "scripts": {
     "dev": "npm run dev -w @film-music/sounding",
     "dev:sounding": "npm run dev -w @film-music/sounding",
