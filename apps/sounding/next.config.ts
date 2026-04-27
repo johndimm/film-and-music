@@ -3,16 +3,21 @@ import type { NextConfig } from 'next'
 
 const pkgs = path.resolve(__dirname, '../../packages')
 const webpackAliases = {
+  '@film-music/constellations': path.join(pkgs, 'constellations'),
+  '@film-music/taste-context': path.join(pkgs, 'taste-context'),
   '@film-music/platform': path.join(pkgs, 'film-music-platform/src'),
 }
 
 /** Ensures .env.local values are visible to server + client bundles after `next dev` / `next build`. */
 const nextConfig: NextConfig = {
   transpilePackages: ['@film-music/constellations', '@film-music/taste-context', '@film-music/platform'],
-  // Turbopack (Next.js 16 default): relative paths from apps/sounding/.
+  // Turbopack (Next.js 16 default).
+  // NOTE: Vercel requires relative paths (../../packages), but local dev is more stable with absolute paths.
   turbopack: {
     resolveAlias: {
-      '@film-music/platform': '../../packages/film-music-platform/src',
+      '@film-music/constellations': process.env.VERCEL ? '../../packages/constellations' : path.join(pkgs, 'constellations'),
+      '@film-music/taste-context': process.env.VERCEL ? '../../packages/taste-context' : path.join(pkgs, 'taste-context'),
+      '@film-music/platform': process.env.VERCEL ? '../../packages/film-music-platform/src' : path.join(pkgs, 'film-music-platform/src'),
     },
   },
   // Webpack fallback (used by Vercel production builds and `next build --webpack`).

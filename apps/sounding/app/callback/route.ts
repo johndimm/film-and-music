@@ -18,9 +18,19 @@ export async function GET(req: NextRequest) {
     return Response.redirect(`${baseUrl}/?error=spotify_auth_failed`, 302)
   }
 
-  const clientId = process.env.SPOTIFY_CLIENT_ID!
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET!
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI!.trim()
+  const clientId = process.env.SPOTIFY_CLIENT_ID?.trim()
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET?.trim()
+  const redirectUri = process.env.SPOTIFY_REDIRECT_URI?.trim()
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    console.error('callback: missing spotify credentials', {
+      hasId: !!clientId,
+      hasSecret: !!clientSecret,
+      hasRedirect: !!redirectUri,
+    })
+    return Response.redirect(`${baseUrl}/?error=spotify_config_missing`, 302)
+  }
+
   const policy = spotifyRedirectUriPolicyMessage(redirectUri)
   if (policy) {
     console.error('callback: invalid SPOTIFY_REDIRECT_URI policy', policy)
