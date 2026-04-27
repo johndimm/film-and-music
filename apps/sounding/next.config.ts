@@ -1,15 +1,23 @@
 import type { NextConfig } from 'next'
 import path from 'path'
 
+// `next build` runs with cwd = the app directory (apps/sounding).
+// We add fallbacks for the workspace-hoisted node_modules so webpack can
+// always find dependencies regardless of where npm placed them.
+const appDir = process.cwd()
+const repoRoot = path.resolve(appDir, '../..')
+
 const nextConfig: NextConfig = {
   transpilePackages: [],
 
   webpack: (config) => {
-    config.resolve.modules = [
-      path.resolve(__dirname, 'node_modules'),
-      path.resolve(__dirname, '../../node_modules'),
+    const existing: string[] = Array.isArray(config.resolve.modules) ? config.resolve.modules : []
+    const fallbacks = [
+      path.join(appDir, 'node_modules'),
+      path.join(repoRoot, 'node_modules'),
       'node_modules',
     ]
+    config.resolve.modules = Array.from(new Set([...existing, ...fallbacks]))
     return config
   },
 
