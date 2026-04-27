@@ -304,11 +304,11 @@ const App: React.FC<AppProps> = ({
                 const hasKey = await (window as any).aistudio.hasSelectedApiKey();
                 setIsKeyReady(hasKey || !!envKey);
             } else {
-                if (envKey) setIsKeyReady(true);
+                setIsKeyReady(!!envKey);
             }
         };
-        checkKey();
-    }, [setIsKeyReady]);
+        void checkKey();
+    }, [cacheBaseUrl, setIsKeyReady]);
 
     const handleStartSearchRef = useRef(handleStartSearch);
     useEffect(() => {
@@ -520,7 +520,11 @@ const App: React.FC<AppProps> = ({
 
     if (!isKeyReady) {
         return (
-            <div className={`flex flex-col items-center justify-center bg-slate-900 text-white space-y-6 ${embedded ? "h-full w-full" : "h-screen w-screen"}`}>
+            <div
+                className={`flex flex-col items-center justify-center space-y-6 bg-slate-900 text-white ${
+                    embedded ? "min-h-[100dvh] w-full flex-1" : "h-screen w-screen"
+                }`}
+            >
                 <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">Constellations</h1>
                 <button onClick={async () => { if ((window as any).aistudio) { await (window as any).aistudio.openSelectKey(); setIsKeyReady(true); } }} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-medium transition-all hover:scale-105">
                     <Key size={20} className="inline mr-2" /> Select API Key
@@ -589,7 +593,9 @@ const App: React.FC<AppProps> = ({
         <div
             ref={embedded ? (n) => setGraphHostEl(n) : undefined}
             className={`${
-                embedded ? "relative w-full h-full" : "relative h-screen w-screen"
+                embedded
+                    ? "relative flex min-h-0 w-full flex-1 flex-col"
+                    : "relative h-screen w-screen"
             } bg-slate-950 overflow-hidden font-sans text-slate-200 selection:bg-indigo-500/30`}
         >
             {showExtensionControls && (

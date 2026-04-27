@@ -7,6 +7,7 @@ import { dedupeGraph, normalizeForDedup } from '../services/graphUtils';
 import { clampToViewport } from '../utils/graphLogicUtils';
 import { buildWikiUrl } from '../utils/wikiUtils';
 import type { ConstellationsSessionHandoffV1 } from '../sessionHandoff';
+import { userMessageForGeminiFailure } from '../services/aiUtils';
 
 interface PathResponse {
     path: any[];
@@ -147,7 +148,7 @@ export function useSearchHandlers(options: UseSearchHandlersOptions) {
             if (recursiveDepth > 0) setPendingAutoExpandId(startNode.id);
         } catch (e) {
             console.error("Search error:", e);
-            setError("Search failed.");
+            setError(userMessageForGeminiFailure(e));
         } finally {
             setIsProcessing(false);
         }

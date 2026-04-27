@@ -4,7 +4,14 @@ import dynamic from "next/dynamic";
 import type { ComponentProps, FC, ReactNode } from "react";
 import "./index.css";
 
-const App = dynamic(() => import("./App"), { ssr: false });
+const App = dynamic(() => import("./App"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full min-h-[100dvh] w-full items-center justify-center bg-slate-950 text-slate-200">
+      Loading…
+    </div>
+  ),
+});
 
 type AppProps = ComponentProps<typeof App>;
 
@@ -56,11 +63,15 @@ export const FullPageConstellations: FC<FullPageConstellationsProps> = ({
   );
 
   if (layout === "fixed-overlay") {
+    // Explicit dvh + flex-1 so embedded `h-full` has a real height (plain `h-full` alone can
+    // collapse to 0 in production when a parent in the flex chain doesn't resolve, → blank UI).
     return (
-      <div className="fixed inset-0 z-[100] min-h-0 flex flex-col">
+      <div className="fixed inset-0 z-[100] flex h-dvh min-h-0 w-full max-w-full flex-col overflow-hidden">
         {chromeSlot}
-        <div className="min-h-0 min-w-0 flex-1">
-          <div className="h-full min-h-0 w-full min-w-0">{app}</div>
+        <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col [&>*]:min-h-0">
+            {app}
+          </div>
         </div>
       </div>
     );

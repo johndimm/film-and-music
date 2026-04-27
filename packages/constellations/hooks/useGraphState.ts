@@ -364,9 +364,15 @@ export function useGraphState(options: UseGraphStateOptions) {
                         // Endpoint returns array of { name, updated_at }
                         const serverGraphs = data.map((g: any) => g.name);
                         setSavedGraphs(serverGraphs.sort());
+                    } else {
+                        const body = await res.text();
+                        console.warn(
+                            `[constellations] GET /graphs failed: ${res.status}. Check cache server logs (e.g. DB connection / saved_graphs).`,
+                            body.slice(0, 500)
+                        );
                     }
                 } catch (e) {
-                    // console.warn("Failed to fetch saved graphs from server", e);
+                    console.warn("Failed to fetch saved graphs from server", e);
                 }
             }
         };

@@ -269,33 +269,58 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string
   });
 }
 
+/** True when Google returned quota / rate-limit (429, RESOURCE_EXHAUSTED, etc.). */
+export function isGeminiRateOrQuotaError(error: unknown): boolean {
+  const s = String((error as { message?: string })?.message ?? error ?? "").toLowerCase();
+  return (
+    s.includes("429") ||
+    s.includes("resource_exhausted") ||
+    s.includes("resource exhausted") ||
+    s.includes("rate limit") ||
+    s.includes("too many requests")
+  );
+}
+
+/** Short message for ControlPanel / notifications when a search call fails. */
+export function userMessageForGeminiFailure(error: unknown): string {
+  if (isGeminiRateOrQuotaError(error)) {
+    return "Gemini rate limit (429). Wait a few minutes, or use a paid API key / higher quota. You can set VITE_GEMINI_MODEL to another model in env.";
+  }
+  return "Search failed.";
+}
+
 // Improved retry logic with exponential backoff and jitter
-export async function withRetry<T>(fn: () => Promise<T>, attempts = 3, backoffMs = 1000): Promise<T> {
-  let lastError: any;
+export async function withRetry<T>(fn: () => Promise<T>, attempts = 4, backoffMs = 1000): Promise<T> {
+  let lastError: unknown;
   for (let i = 0; i < attempts; i++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
-      const errorStr = String(error?.message || error || '').toLowerCase();
+      const errorStr = String((error as { message?: string })?.message ?? error ?? "").toLowerCase();
       // Only retry if it looks like a transient error (rate limit, timeout, or network)
+      const isRateLimit =
+        errorStr.includes("429") ||
+        errorStr.includes("resource_exhausted") ||
+        errorStr.includes("resource exhausted") ||
+        errorStr.includes("rate limit") ||
+        errorStr.includes("too many requests");
       const isRetryable =
-        errorStr.includes('429') ||
-        errorStr.includes('resource_exhausted') ||
-        errorStr.includes('rate limit') ||
-        errorStr.includes('timeout') ||
-        errorStr.includes('fetch') ||
-        errorStr.includes('network');
+        isRateLimit ||
+        errorStr.includes("timeout") ||
+        errorStr.includes("fetch") ||
+        errorStr.includes("network");
 
       if (i < attempts - 1 && isRetryable) {
-        // Exponential backoff: 1s, 2s, 4s...
-        const baseDelay = backoffMs * Math.pow(2, i);
-        // Add jitter: +/- 20% to avoid "thundering herd"
+        // 429 / quota: wait longer so we do not hammer the API (free tier exhausts quickly).
+        const baseDelay = isRateLimit
+          ? Math.min(60_000, 4000 * Math.pow(2, i))
+          : backoffMs * Math.pow(2, i);
         const jitter = baseDelay * 0.2 * (Math.random() * 2 - 1);
-        const delay = Math.max(0, baseDelay + jitter);
+        const delay = Math.max(200, baseDelay + jitter);
 
         console.warn(`[Retry] Attempt ${i + 1} failed. Retrying in ${Math.round(delay)}ms...`, errorStr);
-        await new Promise(res => setTimeout(res, delay));
+        await new Promise((res) => setTimeout(res, delay));
       } else {
         throw error;
       }
