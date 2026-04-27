@@ -1,0 +1,31 @@
+# Related Work
+
+Constellations sits at the intersection of (1) sensemaking-oriented visualization and interactive graph exploration, (2) two-mode / affiliation networks and event-centric modeling, and (3) LLM-mediated interfaces that must communicate uncertainty and evidence. We briefly summarize relevant foundations and highlight how Constellations differs in scope: it emphasizes **low-friction exploratory navigation** and **edge-level interpretability** in an open-world setting, rather than statistical inference over a fully observed two-mode matrix.
+
+## Sensemaking and exploratory visualization
+Classic work on sensemaking characterizes analysis as an iterative process of foraging, externalizing structure, and revising hypotheses. This perspective motivates interfaces that make it cheap to “try a move,” inspect the result, and backtrack. In InfoVis, interaction models for exploration and task taxonomies provide a language for describing what users do (e.g., search, browse, compare, derive) and for structuring evaluations beyond accuracy.
+
+In this frame, Constellations targets tasks that are often under-emphasized in search-centric evaluation: recall, discovery, and orientation during iterative branching. The system’s bipartite constraint can be viewed as a design mechanism for reducing cognitive load: it narrows the space of possible moves (“expand to the other side”) while remaining expressive across domains.
+
+## Graph exploration interfaces and node-link visualization guidelines
+Node-link diagrams enable intuitive local reasoning (“what connects to what?”), but scale poorly without interaction, filtering, and progressive disclosure. Design guidance for node-link diagrams emphasizes readability, avoidance of “hairballs,” and interaction techniques (hover, highlight, selection, focus+context). Constellations embraces progressive disclosure by default: the graph is small and local, and growth is explicitly user-driven through expansion (including bulk expansion of frontier nodes).
+
+## Two-mode / affiliation networks (bipartite graphs)
+Two-mode (bipartite) networks are a long-standing model for situations where actors participate in events or belong to groups. Canonical examples include actors↔movies, authors↔papers, boards↔companies, and other membership/affiliation structures. A key methodological lesson is that naively projecting a bipartite network into one mode (e.g., actor–actor) can introduce artifacts; bipartite structure deserves analysis and visualization in its own right.
+
+Constellations adopts bipartiteness not primarily as an analytic device, but as an interaction constraint that simplifies exploration: each step alternates between atomic and composite nodes. Joint spatial displays of affiliation networks (e.g., correspondence-analysis-style embeddings) also provide an important precedent for “map-like” knowledge exploration and inform a future direction of large-scale knowledge cartography.
+
+## Scholarly collaboration and citation graphs
+“Collaboration graphs” in the scholarly domain—co-authorship networks, citation networks, and related bipartite constructions (authors↔papers; papers↔venues; papers↔keywords)—are a classic and widely studied use case for two-mode graphs. These systems often support search and navigation over a curated academic corpus and can enable tasks like literature discovery, influence tracing, and community/field structure exploration.
+
+Constellations is conceptually adjacent to this tradition and now supports an **Author↔Paper** mode backed by an academic-paper corpus API (currently OpenAlex). This enables a classic collaboration-graph workflow (authors, papers, venues) while keeping the same low-friction “expand/backtrack” interaction model. As in other domains, Constellations still avoids general web crawling/search and instead uses a small set of structured sources plus an LLM for open-world neighbor proposal where needed.
+
+## Event-centric modeling in cultural heritage and museums
+Event-centric cultural heritage modeling emphasizes events as the connective tissue that relates people, places, objects, and documents. The “historical events as meetings” framing aligns strongly with Constellations’ original person↔event concept: an event is any construct that brings multiple people into relation. In Constellations’ current design, the system selects a bipartite Atomic↔Composite pairing from the seed term and **locks it for the session** to prevent mid-graph switching, while still enabling cross-domain use via different seeds.
+
+## LLMs, structured outputs, and evidence/provenance
+LLM-based interfaces face a core tension: generative flexibility enables broad coverage, but users need interpretable reasons for what the system shows. Work on provenance and evidence in visualization motivates making “why is this here?” a first-class interaction. Constellations operationalizes this at the edge level: edges carry evidence snippets and a source link, and the UI exposes evidence on selection. This supports user judgment in a low-friction exploration loop without claiming causal conclusions.
+
+## Constellations’ positioning
+Constellations can be read as a pragmatic synthesis of (i) interaction design principles for progressive disclosure in node-link exploration, (ii) the representational clarity of two-mode affiliation networks, and (iii) open-world neighbor proposal via an LLM. Relative to classic two-mode network analysis, Constellations does not assume a fully observed matrix or attempt statistical inference; instead, it constructs small neighborhoods on demand and treats the bipartite constraint primarily as an interaction primitive (“expand to the other side”) that limits cognitive load. Relative to static knowledge-graph browsers and search engines, Constellations emphasizes rapid branching and backtracking, and it foregrounds interpretability at the granularity where exploration decisions are made: the edge. Finally, relative to free-form LLM browsing experiences, Constellations introduces two stabilizers—bipartite alternation and a session-level lock of the Atomic↔Composite pair chosen from the seed—to reduce drift and preserve a coherent local structure during exploration.
+

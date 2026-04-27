@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Constellations — 03-related-work.md</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --card: rgba(15, 23, 42, 0.72);
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --link: #93c5fd;
+        --linkHover: #bfdbfe;
+        --border: rgba(148, 163, 184, 0.25);
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: radial-gradient(1200px 800px at 30% 10%, rgba(59,130,246,0.18), transparent 60%),
+                    radial-gradient(1000px 700px at 75% 30%, rgba(245,158,11,0.12), transparent 55%),
+                    var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+      }
+      a { color: var(--link); text-decoration: none; }
+      a:hover { color: var(--linkHover); text-decoration: underline; }
+      code { background: rgba(148,163,184,0.14); padding: 2px 6px; border-radius: 8px; }
+      pre { background: rgba(2,6,23,0.45); border: 1px solid var(--border); padding: 12px; border-radius: 12px; overflow: auto; }
+      h1,h2,h3 { line-height: 1.25; }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 26px 18px 70px; }
+      .nav {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 10px 14px;
+        margin: 14px 0 18px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .nav a { margin-right: 10px; }
+      .content {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 18px 18px;
+      }
+      ul { margin: 10px 0; padding-left: 20px; }
+      p { margin: 10px 0; }
+      figure { margin: 14px 0 18px; text-align: center; }
+      img {
+        max-width: 56%;
+        height: auto;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        display: block;
+        margin: 0 auto;
+      }
+      figcaption { color: var(--muted); font-size: 12px; margin-top: 6px; text-align: center; }
+      video { max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); }
+
+      /* Print-friendly: black on white, no dark backgrounds */
+      @media print {
+        @page {
+          size: letter;
+          margin: 0.75in;
+        }
+        :root {
+          --bg: #ffffff;
+          --card: #ffffff;
+          --text: #000000;
+          --muted: #333333;
+          --link: #000000;
+          --linkHover: #000000;
+          --border: rgba(0, 0, 0, 0.2);
+        }
+        body { background: #ffffff !important; color: #000000 !important; }
+        body {
+          font-family: "Times New Roman", Times, serif !important;
+          font-size: 10pt !important;
+          line-height: 1.35 !important;
+        }
+        .nav { display: none !important; }
+        .wrap { max-width: none !important; padding: 0 !important; }
+        .content { border: none !important; background: #ffffff !important; padding: 0 !important; }
+        a { text-decoration: underline !important; }
+        pre { background: #ffffff !important; }
+        figure { break-inside: avoid; page-break-inside: avoid; }
+        img { border: 1px solid rgba(0,0,0,0.15) !important; max-width: 100% !important; border-radius: 4px !important; }
+        video { display: none !important; }
+
+        /* Academic two-column layout for paper.html */
+        .paper-two-col {
+          column-count: 2;
+          column-gap: 0.28in;
+          column-fill: auto;
+        }
+        .paper-header {
+          column-span: all;
+          margin-bottom: 10pt;
+        }
+        .paper-header h1 { margin: 0 0 6pt 0; font-size: 16pt; }
+        .paper-header p { margin: 0 0 4pt 0; }
+        h2 { font-size: 12pt; margin: 10pt 0 4pt; }
+        h3 { font-size: 11pt; margin: 8pt 0 3pt; }
+        p { text-align: justify; }
+        h2, h3 { break-after: avoid; page-break-after: avoid; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="nav"><a href="./index.html">Paper Index</a> <a href="../index.html">Raw Index (HTML)</a> <a href="../../bibliography.html">Bibliography</a></div>
+      <div class="content">
+        <h1>Related Work</h1>
+<p>Constellations sits at the intersection of (1) sensemaking-oriented visualization and interactive graph exploration, (2) two-mode / affiliation networks and event-centric modeling, and (3) LLM-mediated interfaces that must communicate uncertainty and evidence. We briefly summarize relevant foundations and highlight how Constellations differs in scope: it emphasizes <b>low-friction exploratory navigation</b> and <b>edge-level interpretability</b> in an open-world setting, rather than statistical inference over a fully observed two-mode matrix.</p>
+<h2>Sensemaking and exploratory visualization</h2>
+<p>Classic work on sensemaking characterizes analysis as an iterative process of foraging, externalizing structure, and revising hypotheses. This perspective motivates interfaces that make it cheap to “try a move,” inspect the result, and backtrack. In InfoVis, interaction models for exploration and task taxonomies provide a language for describing what users do (e.g., search, browse, compare, derive) and for structuring evaluations beyond accuracy.</p>
+<p>In this frame, Constellations targets tasks that are often under-emphasized in search-centric evaluation: recall, discovery, and orientation during iterative branching. The system’s bipartite constraint can be viewed as a design mechanism for reducing cognitive load: it narrows the space of possible moves (“expand to the other side”) while remaining expressive across domains.</p>
+<h2>Graph exploration interfaces and node-link visualization guidelines</h2>
+<p>Node-link diagrams enable intuitive local reasoning (“what connects to what?”), but scale poorly without interaction, filtering, and progressive disclosure. Design guidance for node-link diagrams emphasizes readability, avoidance of “hairballs,” and interaction techniques (hover, highlight, selection, focus+context). Constellations embraces progressive disclosure by default: the graph is small and local, and growth is explicitly user-driven through expansion (including bulk expansion of frontier nodes).</p>
+<h2>Two-mode / affiliation networks (bipartite graphs)</h2>
+<p>Two-mode (bipartite) networks are a long-standing model for situations where actors participate in events or belong to groups. Canonical examples include actors↔movies, authors↔papers, boards↔companies, and other membership/affiliation structures. A key methodological lesson is that naively projecting a bipartite network into one mode (e.g., actor–actor) can introduce artifacts; bipartite structure deserves analysis and visualization in its own right.</p>
+<p>Constellations adopts bipartiteness not primarily as an analytic device, but as an interaction constraint that simplifies exploration: each step alternates between atomic and composite nodes. Joint spatial displays of affiliation networks (e.g., correspondence-analysis-style embeddings) also provide an important precedent for “map-like” knowledge exploration and inform a future direction of large-scale knowledge cartography.</p>
+<h2>Scholarly collaboration and citation graphs</h2>
+<p>“Collaboration graphs” in the scholarly domain—co-authorship networks, citation networks, and related bipartite constructions (authors↔papers; papers↔venues; papers↔keywords)—are a classic and widely studied use case for two-mode graphs. These systems often support search and navigation over a curated academic corpus and can enable tasks like literature discovery, influence tracing, and community/field structure exploration.</p>
+<p>Constellations is conceptually adjacent to this tradition and now supports an <b>Author↔Paper</b> mode backed by an academic-paper corpus API (currently OpenAlex). This enables a classic collaboration-graph workflow (authors, papers, venues) while keeping the same low-friction “expand/backtrack” interaction model. As in other domains, Constellations still avoids general web crawling/search and instead uses a small set of structured sources plus an LLM for open-world neighbor proposal where needed.</p>
+<h2>Event-centric modeling in cultural heritage and museums</h2>
+<p>Event-centric cultural heritage modeling emphasizes events as the connective tissue that relates people, places, objects, and documents. The “historical events as meetings” framing aligns strongly with Constellations’ original person↔event concept: an event is any construct that brings multiple people into relation. In Constellations’ current design, the system selects a bipartite Atomic↔Composite pairing from the seed term and <b>locks it for the session</b> to prevent mid-graph switching, while still enabling cross-domain use via different seeds.</p>
+<h2>LLMs, structured outputs, and evidence/provenance</h2>
+<p>LLM-based interfaces face a core tension: generative flexibility enables broad coverage, but users need interpretable reasons for what the system shows. Work on provenance and evidence in visualization motivates making “why is this here?” a first-class interaction. Constellations operationalizes this at the edge level: edges carry evidence snippets and a source link, and the UI exposes evidence on selection. This supports user judgment in a low-friction exploration loop without claiming causal conclusions.</p>
+<h2>Constellations’ positioning</h2>
+<p>Constellations can be read as a pragmatic synthesis of (i) interaction design principles for progressive disclosure in node-link exploration, (ii) the representational clarity of two-mode affiliation networks, and (iii) open-world neighbor proposal via an LLM. Relative to classic two-mode network analysis, Constellations does not assume a fully observed matrix or attempt statistical inference; instead, it constructs small neighborhoods on demand and treats the bipartite constraint primarily as an interaction primitive (“expand to the other side”) that limits cognitive load. Relative to static knowledge-graph browsers and search engines, Constellations emphasizes rapid branching and backtracking, and it foregrounds interpretability at the granularity where exploration decisions are made: the edge. Finally, relative to free-form LLM browsing experiences, Constellations introduces two stabilizers—bipartite alternation and a session-level lock of the Atomic↔Composite pair chosen from the seed—to reduce drift and preserve a coherent local structure during exploration.</p>
+      </div>
+    </div>
+  </body>
+</html>

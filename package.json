@@ -1,0 +1,15 @@
+{
+  "name": "film-and-music",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @film-music/sounding",
+    "dev:sounding": "npm run dev -w @film-music/sounding",
+    "dev:trailer-vision": "npm run dev -w @film-music/trailer-vision",
+    "dev:constellations": "npm run dev -w @film-music/constellations",
+    "build": "npm run build -ws --if-present"
+  }
+}

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Constellations — 06-discussion-future-work.md</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --card: rgba(15, 23, 42, 0.72);
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --link: #93c5fd;
+        --linkHover: #bfdbfe;
+        --border: rgba(148, 163, 184, 0.25);
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: radial-gradient(1200px 800px at 30% 10%, rgba(59,130,246,0.18), transparent 60%),
+                    radial-gradient(1000px 700px at 75% 30%, rgba(245,158,11,0.12), transparent 55%),
+                    var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+      }
+      a { color: var(--link); text-decoration: none; }
+      a:hover { color: var(--linkHover); text-decoration: underline; }
+      code { background: rgba(148,163,184,0.14); padding: 2px 6px; border-radius: 8px; }
+      pre { background: rgba(2,6,23,0.45); border: 1px solid var(--border); padding: 12px; border-radius: 12px; overflow: auto; }
+      h1,h2,h3 { line-height: 1.25; }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 26px 18px 70px; }
+      .nav {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 10px 14px;
+        margin: 14px 0 18px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .nav a { margin-right: 10px; }
+      .content {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 18px 18px;
+      }
+      ul { margin: 10px 0; padding-left: 20px; }
+      p { margin: 10px 0; }
+      figure { margin: 14px 0 18px; text-align: center; }
+      img {
+        max-width: 56%;
+        height: auto;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        display: block;
+        margin: 0 auto;
+      }
+      figcaption { color: var(--muted); font-size: 12px; margin-top: 6px; text-align: center; }
+      video { max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); }
+
+      /* Print-friendly: black on white, no dark backgrounds */
+      @media print {
+        @page {
+          size: letter;
+          margin: 0.75in;
+        }
+        :root {
+          --bg: #ffffff;
+          --card: #ffffff;
+          --text: #000000;
+          --muted: #333333;
+          --link: #000000;
+          --linkHover: #000000;
+          --border: rgba(0, 0, 0, 0.2);
+        }
+        body { background: #ffffff !important; color: #000000 !important; }
+        body {
+          font-family: "Times New Roman", Times, serif !important;
+          font-size: 10pt !important;
+          line-height: 1.35 !important;
+        }
+        .nav { display: none !important; }
+        .wrap { max-width: none !important; padding: 0 !important; }
+        .content { border: none !important; background: #ffffff !important; padding: 0 !important; }
+        a { text-decoration: underline !important; }
+        pre { background: #ffffff !important; }
+        figure { break-inside: avoid; page-break-inside: avoid; }
+        img { border: 1px solid rgba(0,0,0,0.15) !important; max-width: 100% !important; border-radius: 4px !important; }
+        video { display: none !important; }
+
+        /* Academic two-column layout for paper.html */
+        .paper-two-col {
+          column-count: 2;
+          column-gap: 0.28in;
+          column-fill: auto;
+        }
+        .paper-header {
+          column-span: all;
+          margin-bottom: 10pt;
+        }
+        .paper-header h1 { margin: 0 0 6pt 0; font-size: 16pt; }
+        .paper-header p { margin: 0 0 4pt 0; }
+        h2 { font-size: 12pt; margin: 10pt 0 4pt; }
+        h3 { font-size: 11pt; margin: 8pt 0 3pt; }
+        p { text-align: justify; }
+        h2, h3 { break-after: avoid; page-break-after: avoid; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="nav"><a href="./index.html">Paper Index</a> <a href="../index.html">Raw Index (HTML)</a> <a href="../../bibliography.html">Bibliography</a></div>
+      <div class="content">
+        <h1>Discussion & Future Work</h1>
+<h2>Discussion: what Constellations is (and is not)</h2>
+<p>Constellations is designed for <b>exploration</b>, not inference. While bipartite network analysis offers statistical models for affiliation data, Constellations operates in an open-world setting with locally constructed neighborhoods and focuses on user experience: recall, curiosity, and sensemaking.</p>
+<h2>LLM use case: connection discovery, not text generation</h2>
+<p>An important distinction about the role of AI in Constellations: <b>we are not using the LLM to write text for the user</b>. That is typically the primary concern people have about AI systems—generated content that may be misleading, biased, or fabricated. Instead, Constellations uses the LLM to <b>find connections</b> between entities.</p>
+<p>This is conceptually very similar to how a search engine works: in response to a query, the search engine returns a series of links to documents, and some of them may not be relevant. Users are already accustomed to this pattern and have developed effective strategies for handling it—they simply skip over the irrelevant results and focus on the useful ones. The cognitive load and trust calibration required are familiar and manageable.</p>
+<p>In our application, irrelevant connections may occasionally appear in the graph. This should not be viewed as a catastrophic failure, but rather as an expected characteristic of exploratory retrieval systems. Users can quickly assess connection relevance through the attached evidence snippets and either dismiss spurious edges or follow promising ones. The interaction model naturally supports this filtering behavior without imposing undue burden.</p>
+<h2>Limitations</h2>
+<ul>
+<li><b>Open-world ambiguity and name collisions</b>: many entities share names (e.g., people vs works with the same title). Lightweight context helps, but disambiguation remains imperfect and can propagate errors into expansion.</li>
+<li><b>Model knowledge gaps and recency</b>: LLMs can be outdated, and Wikipedia coverage varies; the system can misclassify entities or miss important neighbors without stronger retrieval and verification.</li>
+<li><b>Evidence is supportive, not definitive</b>: a single snippet and link is often enough for user judgment, but it does not guarantee the edge is correct. Automated snippet verification and multi-source provenance are not yet implemented.</li>
+<li><b>Domain variance</b>: some domains naturally form clean affiliation structures (e.g., actors↔films), while others exhibit weaker “membership” semantics or higher noise. Session-level pair locking reduces drift but can also constrain legitimate cross-type exploration.</li>
+<li><b>Scalability and layout stability</b>: force-directed layouts are effective for small local neighborhoods but can become unstable or visually dense under repeated bulk expansion, motivating multi-resolution views and clustering.</li>
+</ul>
+<h2>Future work directions</h2>
+<h3>Better expansion ranking (bipartite-aware)</h3>
+<p>Use bipartite-inspired heuristics for ranking and diversity:</p>
+<ul>
+<li>down-weight generic hubs,</li>
+<li>promote diversity across roles/decades/types,</li>
+<li>rank by evidence quality and specificity.</li>
+</ul>
+<h3>Stronger evidence and provenance</h3>
+<p>Move from “one snippet” to richer provenance:</p>
+<ul>
+<li>multiple evidence items per edge,</li>
+<li>automated verification that the snippet exists in the claimed source,</li>
+<li>user feedback loops (confirm/reject edges).</li>
+</ul>
+<h3>Pair learning and “soft locks”</h3>
+<p>The current system chooses among a small set of bipartite pairs and locks the choice for the session. A natural extension is to treat pair selection as a probabilistic belief state: maintain a small set of candidate pairings with confidence, allow controlled switching only when confidence crosses a threshold, and preserve previously drawn edges by freezing node partitions once placed.</p>
+<h3>Global “map-like” exploration (joint embedding)</h3>
+<p>Inspired by joint displays of affiliation networks, a long-term direction is to place a very large two-mode graph into a shared 2D space (“knowledge cartography”), enabling map-like exploration at multiple zoom levels. A practical approach would require multi-resolution embeddings and approximate optimization rather than exact global minimization.</p>
+<h3>Domain packs and curatorial modes</h3>
+<p>For domains like film and museums:</p>
+<ul>
+<li>curated constraints on allowed composite types,</li>
+<li>exhibit-specific “packs” with guided seeds and narratives,</li>
+<li>touch-screen / installation mode for public spaces.</li>
+</ul>
+<h3>Scaling limits as a design probe</h3>
+<p>Bulk frontier expansion (e.g., expanding all leaf nodes repeatedly) provides a practical way to probe system limits: at what point do layout stability, latency, and evidence quality degrade? Characterizing this “interesting limit” could inform adaptive strategies such as multi-resolution views, clustering, and progressive summarization.</p>
+      </div>
+    </div>
+  </body>
+</html>

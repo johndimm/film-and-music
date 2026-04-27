@@ -1,0 +1,15 @@
+This is a software engineering task.  
+
+1.  I have two github repos with a lot in common.  Can we avoid duplication?
+
+  - movie-recs
+    - new name is Trailer Vision
+  - earprint
+   - new name is Sounding
+
+Let's try to make a combined repo here, in film-and-music.
+
+
+2.  I have another repo, Constellations, and I want to create a graph in the film-and-music app.  The graph is what Constellations produces based on the current artist name.  Also, if the current track or movie appears in the graph, expand it.
+
+ 

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Queries Documentation - Constellations</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --text: #f8fafc;
+            --accent: #38bdf8;
+            --code-bg: #1e293b;
+            --border: #334155;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg);
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: var(--accent);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        pre {
+            background: var(--code-bg);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            border: 1px solid var(--border);
+        }
+
+        code {
+            font-family: "SF Mono", "Monaco", "Inconsolata", "Fira Mono", "Droid Sans Mono", "Source Code Pro", monospace;
+            font-size: 0.9rem;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        hr {
+            border: 0;
+            border-top: 1px solid var(--border);
+            margin: 2rem 0;
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .container {
+            background: rgba(30, 41, 59, 0.5);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>API Queries Documentation</h1>
+        <p>This document outlines the external API calls used by the <strong>Constellations</strong> application. These
+            include Google Gemini for entity processing and Wikipedia/Google Books/DuckDuckGo for metadata and images.
+        </p>
+
+        <hr>
+
+        <h2>1. Google Gemini (LLM)</h2>
+        <p>The application uses <code>gemini-2.5-flash</code> for all entity classification and graph expansion tasks
+            via the <code>@google/genai</code> SDK.</p>
+
+        <h3>Common Request Structure</h3>
+        <ul>
+            <li><strong>Endpoint</strong>:
+                <code>https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$API_KEY</code>
+            </li>
+            <li><strong>Method</strong>: <code>POST</code></li>
+            <li><strong>Headers</strong>: <code>Content-Type: application/json</code></li>
+        </ul>
+
+        <h3>Entity Classification</h3>
+        <p>Used to determine if a search term is a "Person" or an "Event/Thing".</p>
+        <p><strong>Example Curl</strong>:</p>
+        <pre><code>curl https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$API_KEY \
+    -H 'Content-Type: application/json' \
+    -d '{
+      "contents": [{
+        "parts":[{"text": "Classify \"Samuel Beckett\". Return JSON with a \"type\" field (Person or Event) and a \"description\"."}]
+      }],
+      "generationConfig": {
+        "response_mime_type": "application/json"
+      }
+    }'</code></pre>
+
+        <h3>System Instruction</h3>
+        <p>The application uses a detailed system instruction to ensure the AI follows bipartite graph rules and returns
+            consistent JSON.</p>
+        <pre><code>You are a Bipartite Graph Generator.
+Your goal is to build a graph that alternates between an "Atomic" type and a "Composite" type.
+
+BIPARTITE STRUCTURE:
+A bipartite graph alternates between an "Atomic" entity type and a "Composite" entity type.
+- Atomic: Fundamental building blocks (e.g., individual people, ingredients, symptoms, authors, actors, components)
+- Composite: Collections or works (e.g., events, recipes, diseases, papers, movies, products, organizations)
+
+Common bipartite pairs include:
+- Person ↔ Event (works, historical events, organizations, movements)
+- Ingredient ↔ Recipe  
+- Symptom ↔ Disease
+- Author ↔ Paper
+- Actor ↔ Movie
+- Component ↔ Product
+- Character ↔ Novel
+
+CRITICAL EXAMPLES TO PREVENT MISCLASSIFICATION:
+- "The Godfather" → COMPOSITE (type: Movie, isAtomic: false), pair: Actor ↔ Movie
+- "Marlon Brando" → ATOMIC (type: Actor, isAtomic: true), pair: Actor ↔ Movie
+- "Star Wars" → COMPOSITE (type: Movie, isAtomic: false), pair: Actor ↔ Movie
+- Movies/books/albums are ALWAYS composite (created BY actors/authors/musicians)
+
+CRITICAL ACCURACY RULE:
+If a section titled "USE THIS VERIFIED INFORMATION FOR ACCURACY" is provided, you MUST prioritize this information above your own internal knowledge.
+
+Core Rules:
+1. If the Source is a Composite, return 8-10 distinct Atomics that are meaningfully connected to it.
+2. If the Source is an Atomic, return 8-10 distinct Composites that it is meaningfully connected to.
+3. Use Title Case for all names.
+4. Return only factually correct information. Do not hallucinate.
+
+Output Format Rules (apply to ALL responses):
+- wikipediaTitle: Always provide the canonical English Wikipedia article title (use parenthetical disambiguation when needed, e.g. "Euphoria (TV series)", "Prince (musician)", "The Godfather").
+- evidenceSnippet: Provide a 1-sentence evidence snippet explaining the connection.
+- evidencePageTitle: Set to the Wikipedia article title the snippet is from (usually the source).
+
+Entity Classification:
+- isAtomic: true if entity is an INDIVIDUAL PERSON/ACTOR (atomic), false if it's a WORK/GROUP/ORGANIZATION (composite).
+  * Atomic entities (Actor, Person, Author, Artist, Scientist, Director, Composer) → isAtomic=true
+  * Composite entities (Movie, Book, Album, Band, Organization, Event, Company) → isAtomic=false
+
+Return strict JSON.</code></pre>
+
+        <h3>Graph Expansion (Connections)</h3>
+        <p>Used to find people connected to a work (e.g., cast of a play) or works connected to a person. Uses the
+            system instruction above to enforce graph rules (bipartite structure, specificity).</p>
+        <p><strong>Example Curl (Fetching Works for a Person)</strong>:</p>
+        <pre><code>curl https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$API_KEY \
+    -H 'Content-Type: application/json' \
+    -d '{
+      "system_instruction": {
+        "parts": [{"text": "You are a collaboration graph generator. Nodes are \"Things\" and \"People\". Return strict JSON."}]
+      },
+      "contents": [{
+        "parts":[{"text": "List 6-8 DISTINCT significant movies, events, or books associated with \"Samuel Beckett\". Include specific years."}]
+      }],
+      "generationConfig": {
+        "response_mime_type": "application/json"
+      }
+    }'</code></pre>
+
+        <hr>
+
+        <h2>2. Wikipedia API</h2>
+        <p>Wikipedia is used for entity disambiguation, fetching multi-paragraph summaries, and finding high-quality
+            images.</p>
+
+        <h3>Search / Disambiguation</h3>
+        <p>Used to find the most relevant Wikipedia page title given a name and context.</p>
+        <p><strong>Example Curl</strong>:</p>
+        <pre><code>curl "https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=Samuel%20Beckett%20Happy%20Days&srlimit=5&origin=*"</code></pre>
+
+        <h3>Fetch Summary (Extracts)</h3>
+        <p>Fetches the introduction text for a specific page.</p>
+        <p><strong>Example Curl</strong>:</p>
+        <pre><code>curl "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|pageprops&exintro&explaintext&titles=Waiting%20for%20Godot&redirects=1&origin=*"</code></pre>
+
+        <h3>Fetch Page Images</h3>
+        <p>Finds the official "page image" (thumbnail) and a list of all other images on the page for scoring.</p>
+        <p><strong>Example Curl</strong>:</p>
+        <pre><code>curl "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages|pageprops|images&titles=Samuel%20Beckett&pithumbsize=500&imlimit=50&redirects=1&origin=*"</code></pre>
+
+        <h3>Fetch Direct Image URL</h3>
+        <p>Maps a File title (e.g., <code>File:Samuel_Beckett.jpg</code>) to a direct CDN URL.</p>
+        <p><strong>Example Curl</strong>:</p>
+        <pre><code>curl "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=imageinfo&titles=File:Samuel_Beckett_1.jpg&iiprop=url&iiurlwidth=500&origin=*"</code></pre>
+
+        <hr>
+
+        <h2>3. Google Books API</h2>
+        <p>Used as a fallback for finding book cover images when Wikipedia lacks a suitable image.</p>
+        <p><strong>Example Curl</strong>:</p>
+        <pre><code>curl "https://www.googleapis.com/books/v1/volumes?q=Waiting%20for%20Godot&maxResults=1"</code></pre>
+
+        <hr>
+
+        <h2>4. DuckDuckGo Image Search (server-side)</h2>
+        <p>Used as a fallback when Wikimedia does not provide a suitable image. The server first fetches a
+            <code>vqd</code>
+            token from the HTML response, then requests image results from the JSON endpoint.</p>
+
+        <h3>Step 1: Fetch the vqd token</h3>
+        <p><strong>Example Curl</strong>:</p>
+        <pre><code>curl "https://duckduckgo.com/?q=Samuel%20Beckett&iax=images&ia=images"</code></pre>
+
+        <h3>Step 2: Fetch image results (JSON)</h3>
+        <p><strong>Example Curl</strong>:</p>
+        <pre><code>curl "https://duckduckgo.com/i.js?l=us-en&o=json&q=Samuel%20Beckett&vqd=REPLACE_WITH_VQD&f=,,,&p=1" \
+  -H "Referer: https://duckduckgo.com/?q=Samuel%20Beckett&iax=images&ia=images" \
+  -H "Accept: application/json, text/javascript, */*; q=0.01" \
+  -H "X-Requested-With: XMLHttpRequest"</code></pre>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,56 @@
+import path from 'path';
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, '.', '');
+  const apiKey =
+    env.VITE_GEMINI_API_KEY ||
+    env.GEMINI_API_KEY ||
+    env.VITE_API_KEY ||
+    env.API_KEY ||
+    env.NEXT_PUBLIC_API_KEY ||
+    "";
+  const cacheTarget = (env.VITE_CACHE_URL || env.VITE_CACHE_API_URL || 'http://127.0.0.1:4000').replace(/\/$/, '');
+  return {
+    server: {
+      port: 3000,
+      host: '0.0.0.0',
+      /** Dev: `getImageApiBaseUrl` uses same origin; forward to graph server if it implements GET /api/image. */
+      proxy: {
+        '/api/image': {
+          target: cacheTarget,
+          changeOrigin: true,
+        },
+      },
+    },
+    plugins: [tailwindcss(), react()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-d3': ['d3'],
+            'vendor-ai': ['@google/genai'],
+            'vendor-icons': ['lucide-react']
+          }
+        }
+      },
+      chunkSizeWarningLimit: 1000 // Raise limit slightly since we are breaking things up
+    },
+    define: {
+      'process.env.API_KEY': JSON.stringify(apiKey),
+      'process.env.GEMINI_API_KEY': JSON.stringify(apiKey),
+      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(apiKey),
+      'import.meta.env.GEMINI_API_KEY': JSON.stringify(apiKey),
+      'import.meta.env.VITE_CACHE_URL': JSON.stringify(env.VITE_CACHE_URL || env.VITE_CACHE_API_URL || ""),
+      'import.meta.env.VITE_CACHE_API_URL': JSON.stringify(env.VITE_CACHE_URL || env.VITE_CACHE_API_URL || "")
+    },
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, '.'),
+      }
+    }
+  };
+});

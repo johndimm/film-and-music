@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Constellations — 01-abstract.md</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --card: rgba(15, 23, 42, 0.72);
+        --text: #f1f5f9;
+        --muted: #94a3b8;
+        --link: #93c5fd;
+        --linkHover: #bfdbfe;
+        --border: rgba(148, 163, 184, 0.25);
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: radial-gradient(1200px 800px at 30% 10%, rgba(59,130,246,0.18), transparent 60%),
+                    radial-gradient(1000px 700px at 75% 30%, rgba(245,158,11,0.12), transparent 55%),
+                    var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+      }
+      a { color: var(--link); text-decoration: none; }
+      a:hover { color: var(--linkHover); text-decoration: underline; }
+      code { background: rgba(148,163,184,0.14); padding: 2px 6px; border-radius: 8px; }
+      pre { background: rgba(2,6,23,0.45); border: 1px solid var(--border); padding: 12px; border-radius: 12px; overflow: auto; }
+      h1,h2,h3 { line-height: 1.25; }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 26px 18px 70px; }
+      .nav {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 10px 14px;
+        margin: 14px 0 18px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .nav a { margin-right: 10px; }
+      .content {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 18px 18px;
+      }
+      ul { margin: 10px 0; padding-left: 20px; }
+      p { margin: 10px 0; }
+      figure { margin: 14px 0 18px; text-align: center; }
+      img {
+        max-width: 56%;
+        height: auto;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        display: block;
+        margin: 0 auto;
+      }
+      figcaption { color: var(--muted); font-size: 12px; margin-top: 6px; text-align: center; }
+      video { max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); }
+
+      /* Print-friendly: black on white, no dark backgrounds */
+      @media print {
+        @page {
+          size: letter;
+          margin: 0.75in;
+        }
+        :root {
+          --bg: #ffffff;
+          --card: #ffffff;
+          --text: #000000;
+          --muted: #333333;
+          --link: #000000;
+          --linkHover: #000000;
+          --border: rgba(0, 0, 0, 0.2);
+        }
+        body { background: #ffffff !important; color: #000000 !important; }
+        body {
+          font-family: "Times New Roman", Times, serif !important;
+          font-size: 10pt !important;
+          line-height: 1.35 !important;
+        }
+        .nav { display: none !important; }
+        .wrap { max-width: none !important; padding: 0 !important; }
+        .content { border: none !important; background: #ffffff !important; padding: 0 !important; }
+        a { text-decoration: underline !important; }
+        pre { background: #ffffff !important; }
+        figure { break-inside: avoid; page-break-inside: avoid; }
+        img { border: 1px solid rgba(0,0,0,0.15) !important; max-width: 100% !important; border-radius: 4px !important; }
+        video { display: none !important; }
+
+        /* Academic two-column layout for paper.html */
+        .paper-two-col {
+          column-count: 2;
+          column-gap: 0.28in;
+          column-fill: auto;
+        }
+        .paper-header {
+          column-span: all;
+          margin-bottom: 10pt;
+        }
+        .paper-header h1 { margin: 0 0 6pt 0; font-size: 16pt; }
+        .paper-header p { margin: 0 0 4pt 0; }
+        h2 { font-size: 12pt; margin: 10pt 0 4pt; }
+        h3 { font-size: 11pt; margin: 8pt 0 3pt; }
+        p { text-align: justify; }
+        h2, h3 { break-after: avoid; page-break-after: avoid; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="nav"><a href="./index.html">Paper Index</a> <a href="../index.html">Raw Index (HTML)</a> <a href="../../bibliography.html">Bibliography</a></div>
+      <div class="content">
+        <h1>Abstract</h1>
+<p>People often explore knowledge by following curiosity—moving from one idea to the next—rather than by asking a single question. We present <b>Constellations</b>, an interactive system for <b>low-friction exploratory navigation</b> that constructs <b>bipartite (Atomic↔Composite)</b> graphs on demand from natural-language queries. Users begin with a single entity and iteratively expand the graph while the system enforces bipartite alternation. To reduce instability from mid-graph ontology drift, Constellations selects a bipartite pair from the first query (currently among Person↔Event, Ingredient↔Recipe, Symptom↔Disease, Author↔Paper) and <b>locks it for the session</b> (no switching). To support interpretation and trust, Constellations attaches <b>evidence-backed edges</b> (short snippets with source links) so users can inspect the claimed reason behind a connection at any step. The system’s primary data sources are <b>Wikipedia/Wikimedia APIs</b> (Wikipedia + Wikidata), academic metadata APIs (e.g., OpenAlex/Crossref), and an <b>LLM</b>; it does <b>not</b> rely on general internet search for evidence, but it does use <b>DuckDuckGo image search</b> as a fallback when Wikimedia does not provide a suitable image. We describe the system design and position it relative to work on two-mode/affiliation networks and event-centric cultural heritage modeling. We argue that evidence-backed bipartite exploration offers a complementary paradigm to search and static knowledge graphs: a lightweight interface for navigating the frontier between what users know and what they might learn next.</p>
+      </div>
+    </div>
+  </body>
+</html>

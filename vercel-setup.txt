@@ -1,0 +1,50 @@
+Exploring the repo structure and any Vercel configuration to give accurate deployment guidance.
+
+Here’s a concise way to think about it and what to set in Vercel.
+
+What 3000 and 8000 are
+packages/constellations (Vite) – dev server on port 3000 (vite.config.ts).
+apps/sounding (Next.js) – dev on port 8000 (next dev -p 8000 in package.json).
+Those ports are only for local dev. Vercel does not run two servers on two ports in one production deployment. In production, Constellations is baked into the Next app: next.config.ts transpiles @film-music/constellations, and routes like /constellations use it. So you normally deploy one Vercel project: Soundings (Next.js) at the root URL; no separate “3000 app” in production.
+
+One Vercel project (recommended)
+Import the Git repo in Vercel.
+Root Directory (Project → Settings → General):
+Either leave the default repo root and use the commands below, or
+Set Root Directory to apps/sounding and fix install (see below).
+Framework preset: Next.js (Vercel should detect it if the app root is apps/sounding).
+If Root Directory = repository root (e.g. film-and-music/):
+
+Setting	Value
+Install Command
+npm install
+Build Command
+npm run build -w @film-music/sounding
+Output
+(leave default; Next is handled by the preset)
+If Root Directory = apps/sounding:
+Vercel’s default npm install in that folder may not install monorepo siblings. Use something like:
+
+Install Command: cd ../.. && npm install
+Build Command: npm run build (runs in apps/sounding if that’s the root) or cd ../.. && npm run build -w @film-music/sounding
+(Use the variant that actually produces .next under apps/sounding in your setup.)
+
+Environment variables – copy the ones you use locally (e.g. from root .env.local) into the Vercel project: Spotify, Gemini, NEXT_*, VITE_* / NEXT_PUBLIC_* overrides that next.config.ts already maps. The monorepo loads root .env in dev; on Vercel you set the same values in the dashboard (or link envs per branch).
+
+Node version – match your local (e.g. 20 LTS) under Settings → General if builds fail on default Node.
+
+Optional: second Vercel project (standalone Constellations Vite)
+Only if you want a separate site (e.g. static or Vite app only), not the embedded Next routes:
+
+New Vercel project, root = packages/constellations
+Build: npm run build (or your package script)
+Output: Vite’s dist (Static / SPA), not Next.
+That’s a second production URL, separate from Soundings. Most of your “two apps on two ports” dev setup maps to one Soundings deploy for the full product.
+
+Summary
+Local dev	Production on Vercel
+Next on 8000 + Vite on 3000
+One Next deployment (Soundings); constellations is part of that build
+Optional second project only for standalone Vite
+You do not configure “port 3000 and 8000” on Vercel; you configure one Next.js build for apps/sounding in the monorepo and your env vars.
+
