@@ -1,6 +1,6 @@
 {
   "buildCommand": "npm run build -w @film-music/sounding",
-  "installCommand": "npm install",
+  "installCommand": "npm install && npm install --prefix apps/sounding @google/genai d3 lucide-react",
   "outputDirectory": "apps/sounding/.next",
   "framework": "nextjs"
 }
