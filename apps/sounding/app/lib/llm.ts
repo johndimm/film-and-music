@@ -374,13 +374,10 @@ export async function getNextSongQuery(
     } catch (err) {
       lastError = err as Error
       const msg = lastError.message || ''
-      // Fallback to Gemini if the primary provider (often DeepSeek) has an auth error
+      // On auth failure (401/403), switch to Gemini for the next attempt if available
       if ((msg.includes('401') || msg.includes('403')) && provider !== 'gemini' && process.env.GEMINI_API_KEY) {
-        console.warn(`[llm] provider ${provider} failed with auth error, falling back to gemini`)
+        console.warn(`[llm] provider ${provider} failed with auth error, switching to gemini fallback`)
         provider = 'gemini'
-        // Don't increment attempt count for a provider switch
-        attempt--
-        continue
       }
       if (attempt === MAX_LLM_ATTEMPTS - 1) throw err
       continue

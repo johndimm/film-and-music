@@ -81,7 +81,7 @@ const MAX_HIGH_RT_SKIP_LINES = 28;
 const LOW_RT_THRESHOLD = 60; // want-to-watch: RT below this is a strong signal
 const HIGH_RT_THRESHOLD = 70; // not interested: RT at/above this is a strong signal
 /** Scales with batch size (8 titles × short JSON + reasons). */
-const LLM_OUTPUT_MAX_TOKENS = 2200;
+const LLM_OUTPUT_MAX_TOKENS = 4000;
 
 function getYoutubeDataApiKey(): string | undefined {
   return process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_DATA_API_KEY;

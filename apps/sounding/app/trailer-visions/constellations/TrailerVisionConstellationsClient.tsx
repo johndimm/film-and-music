@@ -32,7 +32,7 @@ export default function TrailerVisionConstellationsClient() {
   return (
     <FullPageConstellations
       layout="below-app-chrome"
-      closeHref="/"
+      closeHref="/trailer-visions"
       externalSearch={externalSearch}
       onExternalSearchConsumed={() => {}}
       autoExpandMatchTitles={autoExpandTitles}
@@ -42,7 +42,7 @@ export default function TrailerVisionConstellationsClient() {
         newChannelFromGraphNode(node, {
           sessionStorageKey: trailerVisionStorage.pendingConstellationsNewChannel,
           navigate: (path) => router.push(path),
-          path: "/",
+          path: "/trailer-visions",
           logLabel: "trailer-vision-constellations",
         })
       }
