@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { WatchlistEntry } from "../page";
+import type { WatchlistEntry } from "../lib/entry";
 import RTBadge from "../components/RTBadge";
 import { trailerVisionStorage } from "@/app/lib/platform";
 

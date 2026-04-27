@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { trailerVisionStorage } from "@/app/lib/platform";
-import type { RatingEntry, WatchlistEntry } from "../page";
+import type { RatingEntry, WatchlistEntry } from "../lib/entry";
 import { StaticStars } from "../components/Stars";
 import { migrateRatingValue } from "@/app/lib/taste-context";
 import { starDelta, formatStarDelta } from "../lib/ratingDelta";
@@ -20,7 +20,7 @@ import {
   ALL_CHANNEL,
   CHANNELS_KEY,
   ACTIVE_CHANNEL_KEY,
-} from "../channels/page";
+} from "../lib/channel";
 
 const STORAGE_KEY = trailerVisionStorage.history;
 const RECONSIDER_KEY = trailerVisionStorage.reconsider;

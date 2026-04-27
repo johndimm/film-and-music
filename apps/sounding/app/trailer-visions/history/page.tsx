@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import type { RatingEntry } from "../page";
+import type { RatingEntry } from "../lib/entry";
 import { StaticStars } from "../components/Stars";
 import { migrateRatingValue } from "@/app/lib/taste-context";
 import { starDelta, formatStarDelta } from "../lib/ratingDelta";
 import { trailerVisionStorage } from "@/app/lib/platform";
-import { Channel, normalizeChannel, CHANNELS_KEY } from "../channels/page";
+import { Channel, normalizeChannel, CHANNELS_KEY } from "../lib/channel";
 
 const STORAGE_KEY = trailerVisionStorage.history;
 const RECONSIDER_KEY = trailerVisionStorage.reconsider;

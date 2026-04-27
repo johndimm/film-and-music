@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import type { WatchlistEntry } from "../page";
+import type { RatingEntry, WatchlistEntry } from "../lib/entry";
 import { StaticStars } from "../components/Stars";
 import RTBadge from "../components/RTBadge";
 import { migrateRatingValue } from "@/app/lib/taste-context";
@@ -16,14 +16,6 @@ const WATCHLIST_KEY = trailerVisionStorage.watchlist;
 const NOT_INTERESTED_KEY = trailerVisionStorage.notInterested;
 const RECONSIDER_KEY = trailerVisionStorage.reconsider;
 
-interface RatingEntry {
-  title: string;
-  type: "movie" | "tv";
-  userRating: number;
-  predictedRating: number;
-  error: number;
-  rtScore?: string | null;
-}
 
 type Tab = "seen" | "watchlist" | "not-interested";
 type SeenSort = "user" | "delta";

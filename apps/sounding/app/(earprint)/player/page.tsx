@@ -3,8 +3,7 @@ import { redirect } from 'next/navigation'
 import { getBaseUrl } from '@/app/lib/baseUrl'
 import { kvGet } from '@/app/lib/kvStore'
 import { parseShareId } from '@/app/lib/shareId'
-import { YOUTUBE_MODE_COOKIE } from '@/app/api/auth/youtube/route'
-import { SOUNDING_SHARE_KEY_PREFIX } from '@/app/lib/platform'
+import { soundingsStorage, SOUNDING_SHARE_KEY_PREFIX } from '@/app/lib/platform'
 
 /** Must match `SHARE_KEY_PREFIX` in `app/api/share/route.ts`. */
 const SHARE_KV_PREFIX = SOUNDING_SHARE_KEY_PREFIX
@@ -23,7 +22,7 @@ export default async function PlayerPage({
   const accessToken = cookieStore.get('spotify_access_token')?.value
   // Cookie set by /api/auth/youtube — lets the user return to /player without the
   // `?youtube=1` query string (header nav, Settings redirect, etc).
-  const youtubeCookieMode = cookieStore.get(YOUTUBE_MODE_COOKIE)?.value === '1'
+  const youtubeCookieMode = cookieStore.get(soundingsStorage.youtubeModeCookie)?.value === '1'
 
   const shareRaw =
     typeof params['share'] === 'string'

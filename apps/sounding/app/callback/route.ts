@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { storeSpotifyTokensInResponse, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
 import { getBaseUrl } from '@/app/lib/baseUrl'
 import { spotifyRedirectUriPolicyMessage } from '@/app/lib/spotify/redirectPolicy'
-import { YOUTUBE_MODE_COOKIE } from '@/app/api/auth/youtube/route'
+import { soundingsStorage } from '@/app/lib/platform'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
   // Selecting "Login with Spotify" is an explicit vote for Spotify mode — clear the
   // YouTube-only marker so we don't fight the user's intent (landing page, player-page
   // gate, layout seeding all key off this cookie).
-  res.cookies.set(YOUTUBE_MODE_COOKIE, '', {
+  res.cookies.set(soundingsStorage.youtubeModeCookie, '', {
     path: '/',
     maxAge: 0,
   })

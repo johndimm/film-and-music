@@ -2,38 +2,37 @@
 
 import { useState, useEffect, useRef } from "react";
 import { trailerVisionStorage, TRAILER_VISION_RESET_DATA_KEYS } from "@/app/lib/platform";
-import { ACTIVE_CHANNEL_KEY, CHANNELS_KEY } from "../channels/page";
+import { ACTIVE_CHANNEL_KEY, CHANNELS_KEY } from "../lib/channel";
 import { isPrefetchQueueStorageKey, listPrefetchQueueStorageKeys } from "../lib/storageKeys";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { mergeFactoryChannelsAndQueues, wipeTrailerVisionStorageAndApplyFactory } from "../lib/factoryChannels";
 
-export const SETTINGS_KEY = trailerVisionStorage.settings;
+const SETTINGS_KEY = trailerVisionStorage.settings;
 
-export const CHANNEL_EXPORT_KEYS = [CHANNELS_KEY, ACTIVE_CHANNEL_KEY] as const;
+const CHANNEL_EXPORT_KEYS = [CHANNELS_KEY, ACTIVE_CHANNEL_KEY] as const;
 
-export type TrailerVisionExportV1 = {
+type TrailerVisionExportV1 = {
   version: 1;
   exportedAt: string;
-  /** Which sections were requested when exporting (for your notes). */
   options: { channels: boolean; queue: boolean; history: boolean };
   data: Record<string, unknown>;
 };
 
-export interface AppSettings {
+interface AppSettings {
   mediaType: "both" | "movie" | "tv";
   displayMode: "trailers" | "posters";
   llm: string;
   userRequest: string;
 }
 
-export const DEFAULT_SETTINGS: AppSettings = {
+const DEFAULT_SETTINGS: AppSettings = {
   mediaType: "both",
   displayMode: "trailers",
   llm: "deepseek",
   userRequest: "",
 };
 
-export function loadSettings(): AppSettings {
+function loadSettings(): AppSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const s = localStorage.getItem(SETTINGS_KEY);
@@ -43,8 +42,7 @@ export function loadSettings(): AppSettings {
   }
 }
 
-/** Keys included when "History & related" export is checked. */
-export const HISTORY_EXPORT_KEYS = [...TRAILER_VISION_RESET_DATA_KEYS] as const;
+const HISTORY_EXPORT_KEYS = [...TRAILER_VISION_RESET_DATA_KEYS] as const;
 
 const IMPORT_BASE_KEYS = new Set<string>([
   ...CHANNEL_EXPORT_KEYS,

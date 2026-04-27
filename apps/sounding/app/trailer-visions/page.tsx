@@ -3,8 +3,9 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useId, useMemo, memo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import type { Channel } from "./channels/page";
-import { ALL_CHANNEL, normalizeChannel, CHANNELS_KEY, ACTIVE_CHANNEL_KEY } from "./channels/page";
+import type { Channel } from "./lib/channel";
+import { ALL_CHANNEL, normalizeChannel, CHANNELS_KEY, ACTIVE_CHANNEL_KEY } from "./lib/channel";
+import type { RatingEntry, WatchlistEntry } from "./lib/entry";
 import { channelDraftFromPrompt, NEW_CHANNEL_PREFILL_KEY } from "./lib/channelFromPrompt";
 import RTBadge from "./components/RTBadge";
 import { ConfirmDialog } from "./components/ConfirmDialog";
@@ -150,17 +151,6 @@ function buildHistorySyncPayload(hist: RatingEntry[]): Record<string, unknown> {
   };
 }
 
-export interface RatingEntry {
-  title: string;
-  type: "movie" | "tv";
-  userRating: number;
-  predictedRating: number;
-  error: number;
-  rtScore?: string | null;
-  channelId?: string;
-  posterUrl?: string | null;
-  ratingMode?: "seen" | "unseen";
-}
 
 interface CurrentMovie {
   title: string;
@@ -176,18 +166,6 @@ interface CurrentMovie {
   reason: string | null;
 }
 
-export interface WatchlistEntry {
-  title: string;
-  type: "movie" | "tv";
-  year: number | null;
-  director: string | null;
-  actors: string[];
-  plot: string;
-  posterUrl: string | null;
-  rtScore: string | null;
-  streaming: string[];
-  addedAt: string;
-}
 
 /**
  * Titles per LLM POST. Server max is 8; 7 is a good balance of throughput vs latency.
