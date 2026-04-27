@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@film-music/constellations', '@film-music/taste-context', '@film-music/platform'],
+  transpilePackages: [],
 
   env: {
     YOUTUBE_RESOLVE_TEST: process.env.YOUTUBE_RESOLVE_TEST ?? '',

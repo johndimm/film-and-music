@@ -18,8 +18,15 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@film-music/constellations": ["app/lib/constellations/index.tsx"],
+      "@film-music/constellations/*": ["app/lib/constellations/*"],
+      "@film-music/platform": ["app/lib/platform/index.ts"],
+      "@film-music/platform/*": ["app/lib/platform/*"],
+      "@film-music/taste-context": ["app/lib/taste-context/index.ts"],
+      "@film-music/taste-context/*": ["app/lib/taste-context/*"]
     }
   },
   "include": [
@@ -27,16 +34,8 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "../../packages/*/src/**/*.ts",
-    "../../packages/*/src/**/*.tsx",
-    "../../packages/constellations/*.ts",
-    "../../packages/constellations/*.tsx",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": [
-    "node_modules",
-    "../../packages/constellations/server.ts",
-    "../../packages/constellations/scripts/**/*"
-  ]
+  "exclude": ["node_modules"]
 }
