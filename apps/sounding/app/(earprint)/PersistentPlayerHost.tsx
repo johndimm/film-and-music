@@ -124,8 +124,9 @@ function PersistentPlayerHostInner({
     Boolean(shareFromQuery) ||
     pendingShareGate
   const isPlayerRoute = pathname.startsWith('/player')
+  const isMovieRoute = pathname.startsWith('/trailer-visions')
 
-  if (!canPlay) {
+  if (!canPlay || isMovieRoute) {
     return <>{children}</>
   }
 

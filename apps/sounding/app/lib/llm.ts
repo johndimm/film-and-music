@@ -246,7 +246,7 @@ async function askAnthropic(
     },
     body: JSON.stringify({
       model: 'claude-opus-4-6',
-      max_tokens: 2048,
+      max_tokens: 3000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) }],
     }),
@@ -273,7 +273,7 @@ async function askOpenAI(
     },
     body: JSON.stringify({
       model: 'gpt-4.1',
-      max_tokens: 2048,
+      max_tokens: 3000,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) },
@@ -302,7 +302,7 @@ async function askDeepSeek(
     },
     body: JSON.stringify({
       model: 'deepseek-chat',
-      max_tokens: 2048,
+      max_tokens: 3000,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) },
@@ -332,7 +332,7 @@ async function askGemini(
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) }] }],
-        generationConfig: { maxOutputTokens: 2048 },
+        generationConfig: { maxOutputTokens: 3000 },
       }),
     }
   )

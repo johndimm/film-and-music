@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "image fetch failed";
+    console.error(`[api/image] resolution failed for title="${title}" context="${context}":`, e);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
