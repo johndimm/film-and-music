@@ -1,13 +1,4 @@
-import path from 'path'
-import { config as loadEnvFile } from 'dotenv'
 import type { NextConfig } from 'next'
-
-// Monorepo: Next only auto-loads .env* from this app dir (`apps/sounding/`). Also load
-// `film-and-music/.env` and `.env.local` so SPOTIFY_* can live at the repo root. Does not
-// override vars already set (e.g. from apps/sounding/.env.local).
-const monorepoRoot = path.join(__dirname, '../..')
-loadEnvFile({ path: path.join(monorepoRoot, '.env') })
-loadEnvFile({ path: path.join(monorepoRoot, '.env.local') })
 
 /** Ensures .env.local values are visible to server + client bundles after `next dev` / `next build`. */
 const nextConfig: NextConfig = {
