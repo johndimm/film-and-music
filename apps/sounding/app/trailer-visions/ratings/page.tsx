@@ -36,8 +36,10 @@ export default function RatingsPage() {
   const [notInterested, setNotInterested] = useState<{ title: string; rtScore?: string | null }[]>([]);
   const [tab, setTab] = useState<Tab>("seen");
   const [seenSort, setSeenSort] = useState<SeenSort>("user");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     queueMicrotask(() => {
       try {
         const h = localStorage.getItem(STORAGE_KEY);
@@ -134,6 +136,8 @@ export default function RatingsPage() {
     }
     return copy;
   }, [history, seenSort]);
+
+  if (!mounted) return null;
 
   return (
     <div className="min-h-screen bg-zinc-50 flex flex-col items-center py-6 sm:py-10 px-4">

@@ -1,9 +1,5 @@
 import type { NextConfig } from 'next'
 
-/** 
- * Turbopack (Next.js 16 default) requires relative strings starting with ../ or ./ 
- * for aliases to avoid "server relative import" errors. 
- */
 const nextConfig: NextConfig = {
   transpilePackages: ['@film-music/constellations', '@film-music/taste-context', '@film-music/platform'],
 
