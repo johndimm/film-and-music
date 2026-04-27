@@ -1,22 +1,45 @@
 import type { NextConfig } from 'next'
+import { createRequire } from 'node:module'
 import path from 'path'
+import { fileURLToPath } from 'node:url'
 
-// `next build` runs with cwd = the app directory (apps/sounding).
-// We add fallbacks for the workspace-hoisted node_modules so webpack can
-// always find dependencies regardless of where npm placed them.
-const appDir = process.cwd()
-const repoRoot = path.resolve(appDir, '../..')
+// Anchor paths to this file. process.cwd() is not reliable on Vercel (can be the monorepo
+// root when `npm run -w` is used, which breaks ../.. math for node_modules).
+const here = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(here, '../..')
+const requireFromHere = createRequire(import.meta.url)
+
+function resolveLucideDir(): string {
+  const searchRoots = [here, repoRoot]
+  for (const root of searchRoots) {
+    try {
+      return path.dirname(
+        requireFromHere.resolve('lucide-react/package.json', { paths: [root] }),
+      )
+    } catch {
+      /* try next */
+    }
+  }
+  throw new Error(
+    'lucide-react is not installed. On Vercel, set Root Directory to the monorepo root, ' +
+      'or add apps/sounding/vercel.json (install from repo root) as documented in vercel.json.',
+  )
+}
 
 const nextConfig: NextConfig = {
   transpilePackages: [],
 
+  outputFileTracingRoot: repoRoot,
+
   webpack: (config) => {
+    config.resolve = config.resolve ?? {}
+    const lucideDir = resolveLucideDir()
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'lucide-react': lucideDir,
+    }
     const existing: string[] = Array.isArray(config.resolve.modules) ? config.resolve.modules : []
-    const fallbacks = [
-      path.join(appDir, 'node_modules'),
-      path.join(repoRoot, 'node_modules'),
-      'node_modules',
-    ]
+    const fallbacks = [path.join(here, 'node_modules'), path.join(repoRoot, 'node_modules'), 'node_modules']
     config.resolve.modules = Array.from(new Set([...existing, ...fallbacks]))
     return config
   },
