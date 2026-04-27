@@ -19,13 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@film-music/constellations": ["../../packages/constellations"],
-      "@film-music/constellations/*": ["../../packages/constellations/*"],
-      "@film-music/platform": ["../../packages/film-music-platform/src"],
-      "@film-music/platform/*": ["../../packages/film-music-platform/src/*"],
-      "@film-music/taste-context": ["../../packages/taste-context/src"],
-      "@film-music/taste-context/*": ["../../packages/taste-context/src/*"]
+      "@/*": ["./*"]
     }
   },
   "include": [
