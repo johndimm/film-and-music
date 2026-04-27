@@ -3,8 +3,6 @@ import type { NextConfig } from 'next'
 
 const pkgs = path.resolve(__dirname, '../../packages')
 const webpackAliases = {
-  '@film-music/constellations': path.join(pkgs, 'constellations'),
-  '@film-music/taste-context': path.join(pkgs, 'taste-context'),
   '@film-music/platform': path.join(pkgs, 'film-music-platform/src'),
 }
 
@@ -14,8 +12,6 @@ const nextConfig: NextConfig = {
   // Turbopack (Next.js 16 default): relative paths from apps/sounding/.
   turbopack: {
     resolveAlias: {
-      '@film-music/constellations': '../../packages/constellations',
-      '@film-music/taste-context': '../../packages/taste-context',
       '@film-music/platform': '../../packages/film-music-platform/src',
     },
   },
