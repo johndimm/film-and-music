@@ -1,3 +1,4 @@
+"use client";
 import { fetchWikipediaExtract } from '../services/wikipediaService';
 
 export const buildWikiUrl = (title: string, wikipediaId?: string | number) => {

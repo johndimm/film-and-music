@@ -1,3 +1,4 @@
+"use client";
 import { SimulationNodeDatum, SimulationLinkDatum } from 'd3';
 
 export interface GraphNode extends SimulationNodeDatum {

@@ -1,3 +1,4 @@
+"use client";
 import React from 'react';
 import { ChevronRight, ChevronLeft, X } from 'lucide-react';
 import { GraphNode } from '../types';

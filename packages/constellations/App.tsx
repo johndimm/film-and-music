@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { buildWikiUrl } from './utils/wikiUtils';
 import { Key, Search, HelpCircle, Minimize2, Maximize2, ExternalLink } from 'lucide-react';

@@ -8,7 +8,7 @@ import { SOUNDINGS_CONSTELLATIONS_HANDOFF_KEY } from "@film-music/constellations
 import type { GraphNode } from "@film-music/constellations/types";
 
 const ConstellationsApp = dynamic(
-  () => import("@film-music/constellations/App"),
+  () => import("@film-music/constellations/host").then((m) => m.App),
   { ssr: false }
 );
 

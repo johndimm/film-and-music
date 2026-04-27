@@ -1,3 +1,4 @@
+"use client";
 import React from 'react';
 import { GraphNode } from '../types';
 import { ListMusic, Loader2, Maximize, Plus, Sparkles, Trash2 } from 'lucide-react';

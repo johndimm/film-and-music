@@ -1,3 +1,4 @@
+"use client";
 /** Read a Vite-style env var from process (e.g. Next.js) or import.meta (Vite). */
 export function readBundledEnv(key: string): string {
   const fromProcess = getEnvVar(key);

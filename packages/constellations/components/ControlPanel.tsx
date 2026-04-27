@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect } from 'react';
 import { Search, Github, HelpCircle, Minimize2, Maximize2, Maximize, Plus, AlertCircle, Scissors, Calendar, Network, X, Link as LinkIcon, ArrowRight, Type, Trash2, ChevronLeft, ChevronRight, ChevronDown, Download, Upload, Share2, Copy, Users } from 'lucide-react';
 import { DEFAULT_KIOSK_DOMAINS, saveKioskDomains, saveSelectedKioskDomainId } from '../kioskDomains';

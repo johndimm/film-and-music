@@ -1,3 +1,4 @@
+"use client";
 import { jsonFromResponse } from "./aiUtils";
 
 type ImageResolveResult = { url: string | null; source?: string };

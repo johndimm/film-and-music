@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useCallback } from 'react';
 import { GraphNode, GraphLink } from '../types';
 import { fetchConnections, fetchPersonWorks, classifyEntity, fetchOrgKeyPeopleBlockViaSearch, LockedPair } from '../services/geminiService';

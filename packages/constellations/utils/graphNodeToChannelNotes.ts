@@ -1,3 +1,4 @@
+"use client";
 import type { GraphNode } from '../types';
 import { buildWikiUrl } from './wikiUtils';
 

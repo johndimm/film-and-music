@@ -1,3 +1,4 @@
+"use client";
 import { GraphNode, GraphLink } from './types';
 import { LockedPair } from './services/geminiService';
 import { dedupeGraph } from './services/graphUtils';

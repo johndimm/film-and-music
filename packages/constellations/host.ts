@@ -7,6 +7,7 @@
  * — `newChannelFromGraphNode` (sessionStorage + navigate)
  * — `FullPageConstellationsHostLoading`
  */
+export { default as App } from "./App";
 export { FullPageConstellations } from "./FullPageConstellations";
 export type { FullPageConstellationsProps } from "./FullPageConstellations";
 export { useFullPageConstellationsHost } from "./useFullPageConstellationsHost";

@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { GraphNode, GraphLink } from '../types';
 import { X, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';

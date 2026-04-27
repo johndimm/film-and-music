@@ -1,3 +1,4 @@
+"use client";
 import { GoogleGenAI, Type } from "@google/genai";
 import { GeminiResponse, PersonWorksResponse, PathResponse } from "../types";
 import { getApiKey, getResponseText, cleanJson, parseJsonFromModelText, withTimeout, withRetry, getEnvCacheUrl, getEnvGeminiModel, getEnvGeminiModelClassify } from "./aiUtils";

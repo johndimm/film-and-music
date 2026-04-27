@@ -1,3 +1,4 @@
+"use client";
 import { getEffectiveCacheBaseUrl } from './cacheService';
 
 export type ServerImageResult = {

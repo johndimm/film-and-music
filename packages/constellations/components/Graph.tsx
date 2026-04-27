@@ -1,3 +1,4 @@
+"use client";
 import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
 import { GraphNode, GraphLink } from '../types';

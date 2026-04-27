@@ -1,3 +1,4 @@
+"use client";
 import { GraphNode, GraphLink } from '../types';
 
 // Normalize string for deduplication:
