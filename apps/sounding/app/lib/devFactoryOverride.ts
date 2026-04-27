@@ -1,4 +1,4 @@
-import { soundingsStorage } from '@film-music/platform'
+import { soundingsStorage } from '@/app/lib/platform'
 
 /**
  * Local-only snapshot used on blank slate in development so you can iterate on default channels

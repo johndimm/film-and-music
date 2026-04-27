@@ -9,7 +9,7 @@ import {
   type Channel,
 } from '@/app/lib/channelsImportExport'
 import { getBundledFactoryChannelsForReset } from '@/app/lib/demoChannel'
-import { soundingsStorage } from '@film-music/platform'
+import { soundingsStorage } from '@/app/lib/platform'
 import { DEV_FACTORY_OVERRIDE_STORAGE_KEY, isNextDev } from '@/app/lib/devFactoryOverride'
 import { EARPRINT_ALL_CHANNEL_ID } from '@/app/lib/channelsImportExport'
 

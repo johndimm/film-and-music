@@ -1,4 +1,4 @@
-import { trailerVisionStorage } from "@film-music/platform";
+import { trailerVisionStorage } from "@/app/lib/platform";
 export { canonicalTitleKey } from "./canonicalTitleKey";
 
 export const UNSEEN_INTEREST_LOG_KEY = trailerVisionStorage.unseenInterestLog;

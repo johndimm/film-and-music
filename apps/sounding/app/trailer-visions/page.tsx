@@ -8,7 +8,7 @@ import { ALL_CHANNEL, normalizeChannel, CHANNELS_KEY, ACTIVE_CHANNEL_KEY } from 
 import { channelDraftFromPrompt, NEW_CHANNEL_PREFILL_KEY } from "./lib/channelFromPrompt";
 import RTBadge from "./components/RTBadge";
 import { ConfirmDialog } from "./components/ConfirmDialog";
-import { clampStarRating, migrateRatingValue } from "@film-music/taste-context";
+import { clampStarRating, migrateRatingValue } from "@/app/lib/taste-context";
 import {
   CAREER_API,
   careerPersonNameMatch,
@@ -18,15 +18,15 @@ import {
   type TrailerCareerFilm,
   type TrailerCareerMode,
   trailerVisionStorage,
-} from "@film-music/platform";
+} from "@/app/lib/platform";
 import {
   applyFactoryBootstrap,
   hasNoChannelsPersisted,
   isFactoryStarterPackFullyMerged,
   mergeFactoryChannelsAndQueues,
 } from "./lib/factoryChannels";
-import { graphNodeToChannelSeeds } from "@film-music/constellations/graphNodeToChannelNotes";
-import type { GraphNode } from "@film-music/constellations/types";
+import { graphNodeToChannelSeeds } from "@/app/lib/constellations/utils/graphNodeToChannelNotes";
+import type { GraphNode } from "@/app/lib/constellations/types";
 import { canonicalTitleKey } from "./lib/canonicalTitleKey";
 import { pushUnseenInterestEntry, type UnseenInterestEntry } from "./lib/unseenInterestLog";
 

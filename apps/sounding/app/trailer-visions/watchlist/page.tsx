@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { WatchlistEntry } from "../page";
 import RTBadge from "../components/RTBadge";
-import { trailerVisionStorage } from "@film-music/platform";
+import { trailerVisionStorage } from "@/app/lib/platform";
 
 const WATCHLIST_KEY = trailerVisionStorage.watchlist;
 const SKIPPED_KEY = trailerVisionStorage.skipped;

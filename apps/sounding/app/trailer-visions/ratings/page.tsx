@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import type { WatchlistEntry } from "../page";
 import { StaticStars } from "../components/Stars";
 import RTBadge from "../components/RTBadge";
-import { migrateRatingValue } from "@film-music/taste-context";
+import { migrateRatingValue } from "@/app/lib/taste-context";
 import { starDelta, formatStarDelta } from "../lib/ratingDelta";
 import { canonicalTitleKey } from "../lib/canonicalTitleKey";
-import { trailerVisionStorage } from "@film-music/platform";
+import { trailerVisionStorage } from "@/app/lib/platform";
 
 const STORAGE_KEY = trailerVisionStorage.history;
 const SKIPPED_KEY = trailerVisionStorage.skipped;

@@ -1,7 +1,7 @@
 "use client";
 
 import { StaticStars } from "./Stars";
-import { rtTomatometerPercentToStars } from "@film-music/taste-context";
+import { rtTomatometerPercentToStars } from "@/app/lib/taste-context";
 
 /** Rotten Tomatoes Tomatometer % mapped to half-stars (same scale as user ratings). */
 export default function RTBadge({ score }: { score: string }) {

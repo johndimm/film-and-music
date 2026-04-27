@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { soundingsStorage } from '@film-music/platform'
+import { soundingsStorage } from '@/app/lib/platform'
 import PlayerClientWrapper from '@/app/player/PlayerClientWrapper'
 import { applyFreshLoginIfNeeded } from '@/app/lib/freshLogin'
 import { parseShareId } from '@/app/lib/shareId'

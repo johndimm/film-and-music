@@ -19,7 +19,7 @@
  * reset runs at most once per page load no matter which caller wins the race.
  */
 
-import { soundingsStorage } from '@film-music/platform'
+import { soundingsStorage } from '@/app/lib/platform'
 
 const SETTINGS_STORAGE_KEY = soundingsStorage.settings
 const CHANNELS_STORAGE_KEY = soundingsStorage.channels

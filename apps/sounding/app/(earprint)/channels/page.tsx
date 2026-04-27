@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import AppHeader from '@/app/components/AppHeader'
 import { getBundledFactoryChannelsForReset } from '@/app/lib/demoChannel'
-import { soundingsStorage } from '@film-music/platform'
+import { soundingsStorage } from '@/app/lib/platform'
 import {
   ALL_CHANNEL_DISCOVERY_DEFAULT,
   CHANNEL_DISCOVERY_DEFAULT,
@@ -423,7 +423,7 @@ export default function ChannelsPage() {
       <AppHeader />
 
       <div className="flex flex-1 min-h-0 flex-col sm:flex-row gap-0 max-w-[800px] mx-auto w-full">
-        {/* Channel list — same chrome as @film-music/constellations Sidebar / ControlPanel */}
+        {/* Channel list — same chrome as @/app/lib/constellations Sidebar / ControlPanel */}
         <div className="shrink-0 sm:w-48 m-2 mb-0 sm:m-0 flex flex-col min-h-0 sm:max-h-full rounded-xl sm:rounded-none border border-slate-700 sm:border-b-0 sm:border-t-0 sm:border-l-0 bg-slate-900/95 backdrop-blur-xl shadow-2xl sm:shadow-none sm:backdrop-blur-none p-3 sm:border-r sm:border-slate-700">
           <div className="flex items-center justify-between mb-1 shrink-0">
             <span className="text-xs text-slate-500 uppercase tracking-wide">Channels</span>

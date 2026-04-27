@@ -3,12 +3,12 @@
 import dynamic from 'next/dynamic'
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import '@film-music/constellations/index.css'
-import { SOUNDINGS_CONSTELLATIONS_HANDOFF_KEY } from '@film-music/constellations/sessionHandoff'
-import type { GraphNode } from '@film-music/constellations/types'
+import '@/app/lib/constellations/index.css'
+import { SOUNDINGS_CONSTELLATIONS_HANDOFF_KEY } from '@/app/lib/constellations/sessionHandoff'
+import type { GraphNode } from '@/app/lib/constellations/types'
 import { readNowPlayingSnapshot } from '@/app/lib/nowPlayingBridge'
 
-const ConstellationsApp = dynamic(() => import('@film-music/constellations/host').then(m => m.App), { ssr: false })
+const ConstellationsApp = dynamic(() => import('@/app/lib/constellations/host').then(m => m.App), { ssr: false })
 
 function PlayerConstellationsInner({
   onNewChannelFromNode,

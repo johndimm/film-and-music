@@ -1,4 +1,4 @@
-import { soundingsStorage } from '@film-music/platform'
+import { soundingsStorage } from '@/app/lib/platform'
 
 /** Session snapshot for collaboration graph (Constellations) — written by the player, read on `/constellations`. */
 

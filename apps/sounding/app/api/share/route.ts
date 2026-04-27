@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { SOUNDING_SHARE_KEY_PREFIX } from '@film-music/platform'
+import { SOUNDING_SHARE_KEY_PREFIX } from '@/app/lib/platform'
 import { kvGet, kvSet } from '@/app/lib/kvStore'
 
 /**

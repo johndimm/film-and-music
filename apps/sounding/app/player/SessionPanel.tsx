@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState } from 'react'
-import type { MusicCareerWork } from '@film-music/platform'
+import type { MusicCareerWork } from '@/app/lib/platform'
 import { ListenEvent } from '@/app/lib/llm'
 import { type CardState, type PlaybackSource } from '@/app/lib/playback/types'
 

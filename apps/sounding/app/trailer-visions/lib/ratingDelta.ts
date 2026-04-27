@@ -1,4 +1,4 @@
-import { migrateRatingValue } from "@film-music/taste-context";
+import { migrateRatingValue } from "@/app/lib/taste-context";
 
 export function starDelta(user: number, predicted: number): number {
   return migrateRatingValue(user) - migrateRatingValue(predicted);

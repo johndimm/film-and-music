@@ -6,7 +6,7 @@ import {
   parseRtPercent,
   rtTomatometerPercentToStars,
   selectInformativeByDivergence,
-} from "@film-music/taste-context";
+} from "@/app/lib/taste-context";
 
 export async function POST(request: Request) {
   const raw = (await request.json()) as {

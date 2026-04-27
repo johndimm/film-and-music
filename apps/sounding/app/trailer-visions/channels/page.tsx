@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { type SharedChannelTuning, trailerVisionChannelIds, trailerVisionStorage } from "@film-music/platform";
+import { type SharedChannelTuning, trailerVisionChannelIds, trailerVisionStorage } from "@/app/lib/platform";
 import { applyFactoryBootstrap, hasNoChannelsPersisted } from "../lib/factoryChannels";
 import { mergeNewChannelFormPrefill, NEW_CHANNEL_PREFILL_KEY } from "../lib/channelFromPrompt";
 import { ConfirmDialog } from "../components/ConfirmDialog";

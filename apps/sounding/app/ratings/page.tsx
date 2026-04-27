@@ -6,7 +6,7 @@ import AppHeader from '@/app/components/AppHeader'
 import MusicMap from '@/app/player/MusicMap'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import type { HistoryEntry } from '@/app/player/SessionPanel'
-import { soundingsEventNames, soundingsStorage } from '@film-music/platform'
+import { soundingsEventNames, soundingsStorage } from '@/app/lib/platform'
 import type { CardState, PlaybackSource, Track } from '@/app/lib/playback/types'
 
 /**

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveImageForTitle } from "@film-music/constellations/services/resolveImageForTitle";
+import { resolveImageForTitle } from "@/app/lib/constellations/services/resolveImageForTitle";
 
 /**
  * Server-side image resolution for the embedded constellations graph (same contract as

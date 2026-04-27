@@ -5,11 +5,11 @@ import {
   FullPageConstellationsHostLoading,
   newChannelFromGraphNode,
   useFullPageConstellationsHost,
-} from '@film-music/constellations/host'
-import { takeEmbedHandoffForInitialState } from '@film-music/constellations/sessionHandoff'
-import type { GraphNode } from '@film-music/constellations/types'
+} from '@/app/lib/constellations/host'
+import { takeEmbedHandoffForInitialState } from '@/app/lib/constellations/sessionHandoff'
+import type { GraphNode } from '@/app/lib/constellations/types'
 import { readNowPlayingSnapshot } from '@/app/lib/nowPlayingBridge'
-import { soundingsStorage } from '@film-music/platform'
+import { soundingsStorage } from '@/app/lib/platform'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 

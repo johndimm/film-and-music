@@ -1,7 +1,7 @@
 import {
   musicDivergenceFromNeutral,
   selectInformativeByDivergence,
-} from '@film-music/taste-context'
+} from '@/app/lib/taste-context'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
 

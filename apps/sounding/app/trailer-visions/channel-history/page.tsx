@@ -3,10 +3,10 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { trailerVisionStorage } from "@film-music/platform";
+import { trailerVisionStorage } from "@/app/lib/platform";
 import type { RatingEntry, WatchlistEntry } from "../page";
 import { StaticStars } from "../components/Stars";
-import { migrateRatingValue } from "@film-music/taste-context";
+import { migrateRatingValue } from "@/app/lib/taste-context";
 import { starDelta, formatStarDelta } from "../lib/ratingDelta";
 import {
   canonicalTitleKey,

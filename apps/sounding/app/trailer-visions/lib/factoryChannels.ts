@@ -1,5 +1,5 @@
 import factoryJson from "../factory-channels.json";
-import { trailerVisionChannelIds, trailerVisionStorage } from "@film-music/platform";
+import { trailerVisionChannelIds, trailerVisionStorage } from "@/app/lib/platform";
 import { isPrefetchQueueStorageKey } from "./storageKeys";
 
 const CHANNELS_KEY = trailerVisionStorage.channels;

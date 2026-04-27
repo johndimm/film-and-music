@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
-import type { MusicCareerWork } from '@film-music/platform'
+import type { MusicCareerWork } from '@/app/lib/platform'
 
 /** Avoid LLM/edge timeouts on long discographies (Vercel defaults are often 10s). */
 export const maxDuration = 60
 
-/** @deprecated use {@link MusicCareerWork} from `@film-music/platform` */
+/** @deprecated use {@link MusicCareerWork} from `@/app/lib/platform` */
 export type CareerWork = MusicCareerWork
 
 function buildPrompt(artistName: string, source: string, trackTitle?: string, albumTitle?: string): string {

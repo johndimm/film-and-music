@@ -4,9 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { RatingEntry } from "../page";
 import { StaticStars } from "../components/Stars";
-import { migrateRatingValue } from "@film-music/taste-context";
+import { migrateRatingValue } from "@/app/lib/taste-context";
 import { starDelta, formatStarDelta } from "../lib/ratingDelta";
-import { trailerVisionStorage } from "@film-music/platform";
+import { trailerVisionStorage } from "@/app/lib/platform";
 import { Channel, normalizeChannel, CHANNELS_KEY } from "../channels/page";
 
 const STORAGE_KEY = trailerVisionStorage.history;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { trailerVisionStorage, TRAILER_VISION_RESET_DATA_KEYS } from "@film-music/platform";
+import { trailerVisionStorage, TRAILER_VISION_RESET_DATA_KEYS } from "@/app/lib/platform";
 import { ACTIVE_CHANNEL_KEY, CHANNELS_KEY } from "../channels/page";
 import { isPrefetchQueueStorageKey, listPrefetchQueueStorageKeys } from "../lib/storageKeys";
 import { ConfirmDialog } from "../components/ConfirmDialog";

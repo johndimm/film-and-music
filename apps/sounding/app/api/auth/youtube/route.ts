@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { soundingsStorage } from '@film-music/platform'
+import { soundingsStorage } from '@/app/lib/platform'
 import { getBaseUrl } from '@/app/lib/baseUrl'
 
 /**

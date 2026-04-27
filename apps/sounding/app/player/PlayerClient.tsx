@@ -37,9 +37,9 @@ import {
   soundingsStorage,
   type MusicCareerMode,
   type MusicCareerWork,
-} from '@film-music/platform'
-import type { GraphNode } from '@film-music/constellations/types'
-import { graphNodeToChannelSeeds } from '@film-music/constellations/graphNodeToChannelNotes'
+} from '@/app/lib/platform'
+import type { GraphNode } from '@/app/lib/constellations/types'
+import { graphNodeToChannelSeeds } from '@/app/lib/constellations/utils/graphNodeToChannelNotes'
 
 const HISTORY_STORAGE_KEY = soundingsStorage.history
 const SETTINGS_STORAGE_KEY = soundingsStorage.settings

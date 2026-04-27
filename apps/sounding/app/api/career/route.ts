@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { TrailerCareerFilm } from "@film-music/platform";
+import type { TrailerCareerFilm } from "@/app/lib/platform";
 
 const TMDB_KEY = process.env.TMDB_API_KEY;
 const BASE = "https://api.themoviedb.org/3";
 
-/** @deprecated use {@link TrailerCareerFilm} from `@film-music/platform` */
+/** @deprecated use {@link TrailerCareerFilm} from `@/app/lib/platform` */
 export type CareerFilm = TrailerCareerFilm;
 
 export async function GET(req: NextRequest) {

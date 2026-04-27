@@ -1,4 +1,4 @@
-import { trailerVisionStorage } from "@film-music/platform";
+import { trailerVisionStorage } from "@/app/lib/platform";
 
 export const NEW_CHANNEL_PREFILL_KEY = trailerVisionStorage.newChannelPrefill;
 

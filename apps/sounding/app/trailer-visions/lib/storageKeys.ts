@@ -4,4 +4,4 @@ export {
   isPrefetchQueueStorageKey,
   listPrefetchQueueStorageKeys,
   clearAllPrefetchQueueKeys,
-} from "@film-music/platform";
+} from "@/app/lib/platform";

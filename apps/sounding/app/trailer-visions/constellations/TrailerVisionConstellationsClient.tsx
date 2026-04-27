@@ -5,10 +5,10 @@ import {
   FullPageConstellationsHostLoading,
   newChannelFromGraphNode,
   useFullPageConstellationsHost,
-} from "@film-music/constellations/host";
-import { takeEmbedHandoffForInitialState } from "@film-music/constellations/sessionHandoff";
-import type { GraphNode } from "@film-music/constellations/types";
-import { trailerVisionStorage } from "@film-music/platform";
+} from "@/app/lib/constellations/host";
+import { takeEmbedHandoffForInitialState } from "@/app/lib/constellations/sessionHandoff";
+import type { GraphNode } from "@/app/lib/constellations/types";
+import { trailerVisionStorage } from "@/app/lib/platform";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 

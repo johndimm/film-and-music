@@ -4,7 +4,7 @@ import { getBaseUrl } from '@/app/lib/baseUrl'
 import { kvGet } from '@/app/lib/kvStore'
 import { parseShareId } from '@/app/lib/shareId'
 import { YOUTUBE_MODE_COOKIE } from '@/app/api/auth/youtube/route'
-import { SOUNDING_SHARE_KEY_PREFIX } from '@film-music/platform'
+import { SOUNDING_SHARE_KEY_PREFIX } from '@/app/lib/platform'
 
 /** Must match `SHARE_KEY_PREFIX` in `app/api/share/route.ts`. */
 const SHARE_KV_PREFIX = SOUNDING_SHARE_KEY_PREFIX

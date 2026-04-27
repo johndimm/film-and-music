@@ -35,7 +35,7 @@ input, textarea, select {
   to   { background-position: 100% center; }
 }
 
-/* Match @film-music/constellations index.css — panel scrollbars (Sidebar / ControlPanel) */
+/* Match @/app/lib/constellations index.css — panel scrollbars (Sidebar / ControlPanel) */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { soundingsStorage } from '@film-music/platform'
+import { soundingsStorage } from '@/app/lib/platform'
 import { GUIDE_DEMO_MAP_HISTORY } from '@/app/lib/guideDemo'
 import MusicMap from '@/app/player/MusicMap'
 import type { HistoryEntry } from '@/app/player/SessionPanel'

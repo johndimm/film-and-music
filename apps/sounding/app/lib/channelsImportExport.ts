@@ -1,4 +1,4 @@
-import { soundingsChannelIds } from '@film-music/platform'
+import { soundingsChannelIds } from '@/app/lib/platform'
 
 /** JSON export wrapper version (see Settings → Export). */
 export const CHANNELS_EXPORT_VERSION = 1

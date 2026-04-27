@@ -66,7 +66,7 @@ import {
   parseRtPercent,
   rtTomatometerPercentToStars,
   selectInformativeByDivergence,
-} from "@film-music/taste-context";
+} from "@/app/lib/taste-context";
 
 /**
  * Items per LLM response. Client may request up to MAX_BATCH; larger responses need more output budget below.
