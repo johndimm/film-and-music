@@ -43,49 +43,28 @@ export const getEnvVar = (name: string): string => {
 };
 
 export const getEnvCacheUrl = (): string => {
-  // Use literal access for Vite static replacement
-  let url = "";
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      // @ts-ignore
-      url = import.meta.env.VITE_CACHE_URL || import.meta.env.VITE_CACHE_API_URL || "";
-    }
-  } catch (e) { }
-
-  if (url) return url;
-
-  return getEnvVar("VITE_CACHE_URL") || getEnvVar("VITE_CACHE_API_URL");
+  // Next.js: next.config often maps NEXT_PUBLIC_VITE_CACHE_URL → process.env.VITE_CACHE_URL.
+  // readBundledEnv also resolves NEXT_PUBLIC_CACHE_URL from VITE_CACHE_URL (without "VITE_" infix).
+  return (
+    readBundledEnv("VITE_CACHE_URL") ||
+    readBundledEnv("VITE_CACHE_API_URL") ||
+    getEnvVar("NEXT_PUBLIC_VITE_CACHE_URL") ||
+    getEnvVar("NEXT_PUBLIC_VITE_CACHE_API_URL") ||
+    ""
+  ).trim();
 };
 
-export const getEnvGeminiModel = (): string => {
-  // Literal access for Vite
-  let urlModel = "";
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      // @ts-ignore
-      urlModel = import.meta.env.VITE_GEMINI_MODEL || "";
-    }
-  } catch (e) { }
-  if (urlModel) return urlModel;
+/** Default when unset; override with VITE_GEMINI_MODEL or NEXT_PUBLIC_GEMINI_MODEL (Next maps via next.config env). */
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
-  return getEnvVar("VITE_GEMINI_MODEL") || "gemini-2.0-flash";
+export const getEnvGeminiModel = (): string => {
+  const m = readBundledEnv("VITE_GEMINI_MODEL").trim();
+  return m || DEFAULT_GEMINI_MODEL;
 };
 
 export const getEnvGeminiModelClassify = (): string => {
-  // Literal access for Vite
-  let urlModel = "";
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      // @ts-ignore
-      urlModel = import.meta.env.VITE_GEMINI_MODEL_CLASSIFY || "";
-    }
-  } catch (e) { }
-  if (urlModel) return urlModel;
-
-  return getEnvVar("VITE_GEMINI_MODEL_CLASSIFY") || getEnvGeminiModel();
+  const m = readBundledEnv("VITE_GEMINI_MODEL_CLASSIFY").trim();
+  return m || getEnvGeminiModel();
 };
 
 // Robust text extraction from Gemini API response

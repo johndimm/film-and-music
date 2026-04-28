@@ -112,6 +112,24 @@ function shouldProxy(): boolean {
   return !!baseUrl;
 }
 
+export function defaultStartPairResult(reason: string): {
+  type: string;
+  description: string;
+  isAtomic: boolean;
+  atomicType: string;
+  compositeType: string;
+  reasoning: string;
+} {
+  return {
+    type: "Event",
+    description: "",
+    isAtomic: false,
+    atomicType: "Person",
+    compositeType: "Event",
+    reasoning: reason,
+  };
+}
+
 export const classifyStartPair = async (
   term: string,
   wikiContext?: string
@@ -157,17 +175,8 @@ export const classifyStartPair = async (
 
 
   if (!apiKey) {
-    return {
-      type: "Event",
-      description: "",
-      isAtomic: false,
-      atomicType: "Person",
-      compositeType: "Event",
-      reasoning: "No API key available; defaulting to Person↔Event."
-    };
+    return defaultStartPairResult("No API key available; defaulting to Person↔Event.");
   }
-
-  const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `Choose the most appropriate bipartite pair for this session based on the input: "${term}".
 
@@ -181,46 +190,54 @@ Rules:
 - If "${term}" is a very famous person, it is ATOMIC even if they have works.
 `;
 
-  const makeApiCall = () => ai.models.generateContent({
-    model: getGeminiModelClassify(),
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          type: { type: Type.STRING },
-          description: { type: Type.STRING },
-          isAtomic: { type: Type.BOOLEAN },
-          atomicType: { type: Type.STRING },
-          compositeType: { type: Type.STRING },
-          reasoning: { type: Type.STRING }
-        },
-        required: ["type", "isAtomic", "atomicType", "compositeType"]
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+
+    const makeApiCall = () => ai.models.generateContent({
+      model: getGeminiModelClassify(),
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            type: { type: Type.STRING },
+            description: { type: Type.STRING },
+            isAtomic: { type: Type.BOOLEAN },
+            atomicType: { type: Type.STRING },
+            compositeType: { type: Type.STRING },
+            reasoning: { type: Type.STRING }
+          },
+          required: ["type", "isAtomic", "atomicType", "compositeType"]
+        }
       }
-    }
-  });
+    });
 
-  const response = await withRetry(
-    () => withTimeout(makeApiCall(), CLASSIFY_TIMEOUT_MS, "Start-pair classification timed out"),
-    3,
-    1000
-  );
+    const response = await withRetry(
+      () => withTimeout(makeApiCall(), CLASSIFY_TIMEOUT_MS, "Start-pair classification timed out"),
+      3,
+      1000
+    );
 
-  const rawText = getResponseText(response);
-  // console.log(`🤖 [Gemini] Raw Classify-Start response for "${term}":`, rawText);
-  const parsed = parseJsonFromModelText(rawText);
-  const json = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+    const rawText = getResponseText(response);
+    const parsed = parseJsonFromModelText(rawText);
+    const json = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
 
-  const s = (v: unknown, fallback: string) => (typeof v === "string" && v ? v : fallback);
-  return {
-    type: s(json.type, "Event"),
-    description: s(json.description, ""),
-    isAtomic: !!json.isAtomic,
-    atomicType: s(json.atomicType, "Person"),
-    compositeType: s(json.compositeType, "Event"),
-    reasoning: s(json.reasoning, "")
-  };
+    const s = (v: unknown, fallback: string) => (typeof v === "string" && v ? v : fallback);
+    return {
+      type: s(json.type, "Event"),
+      description: s(json.description, ""),
+      isAtomic: !!json.isAtomic,
+      atomicType: s(json.atomicType, "Person"),
+      compositeType: s(json.compositeType, "Event"),
+      reasoning: s(json.reasoning, "")
+    };
+  } catch (e: any) {
+    console.warn("[classifyStartPair]", term, String(e?.message || e).slice(0, 200));
+    return defaultStartPairResult(
+      "Classification API unavailable (quota/rate limit or error); defaulting to Person↔Event."
+    );
+  }
 };
 
 export const classifyEntity = async (term: string, wikiContext?: string): Promise<{
@@ -488,8 +505,8 @@ export const fetchConnections = async (
 
     return parsed;
   } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw error;
+    console.error("Gemini API Error (connections):", error);
+    return { people: [] };
   }
 };
 
@@ -676,7 +693,7 @@ export const fetchPersonWorks = async (
     return parsed;
   } catch (error) {
     console.error("Gemini API Error (Person Works):", error);
-    throw error;
+    return { works: [] };
   }
 };
 
@@ -816,7 +833,7 @@ export const fetchConnectionPath = async (start: string, end: string, context?: 
     return { path: json.path, found: json.path.length > 0 };
   } catch (error) {
     console.error("Gemini Pathfinding Error:", error);
-    throw error;
+    return { path: [], found: false };
   }
 };
 
@@ -840,7 +857,7 @@ export const findWikipediaTitle = async (name: string, description?: string): Pr
 
   try {
     const response = await withTimeout(ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: getGeminiModel(),
       contents: prompt,
       config: {
         responseMimeType: "application/json",
