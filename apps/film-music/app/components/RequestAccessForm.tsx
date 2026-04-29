@@ -28,21 +28,21 @@ export default function RequestAccessForm() {
   }
 
   return (
-    <form onSubmit={submit} className="flex w-full flex-col items-center gap-3">
+    <form onSubmit={submit} className="mx-auto flex w-full max-w-md flex-col items-center gap-3">
       <p className="text-base font-medium text-zinc-300">Request Spotify access</p>
-      <div className="flex gap-2 w-full">
+      <div className="flex w-full gap-2">
         <input
           type="email"
           required
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
           placeholder="your@email.com"
-          className="flex-1 rounded-lg border border-zinc-600 bg-zinc-900 px-3 py-2.5 text-base text-white placeholder-zinc-500 focus:border-zinc-400 focus:outline-none"
+          className="min-w-0 flex-1 rounded-lg border border-zinc-600 bg-zinc-900 px-3 py-2.5 text-base text-white placeholder-zinc-500 focus:border-zinc-400 focus:outline-none"
         />
         <button
           type="submit"
           disabled={status === 'sending'}
-          className="rounded-lg bg-zinc-700 px-4 py-2.5 text-base font-medium text-white transition-colors hover:bg-zinc-600 disabled:opacity-50"
+          className="shrink-0 rounded-lg bg-zinc-700 px-4 py-2.5 text-base font-medium text-white transition-colors hover:bg-zinc-600 disabled:opacity-50"
         >
           {status === 'sending' ? 'Sending…' : 'Send'}
         </button>
