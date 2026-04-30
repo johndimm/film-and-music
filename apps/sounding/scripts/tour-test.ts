@@ -40,7 +40,9 @@ async function run() {
         undefined,
         priorProfile,
         played.map(raw => JSON.parse(raw).search),
-        mode
+        mode,
+        undefined,
+        undefined
       )
     } catch (err) {
       console.error(`\nFailed on round ${round}:`, err)

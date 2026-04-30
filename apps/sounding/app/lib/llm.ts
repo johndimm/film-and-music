@@ -4,9 +4,11 @@ import {
 } from '@/app/lib/taste-context'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
+import { writeLlmLog } from '@/app/lib/server/llmLogs'
 
 /** Match next-movie batch prompt budget: strongest opinions + recent tail. */
 const MAX_SESSION_RATING_LINES = 32
+const MAX_CARD_RATING_LINES = 64
 
 export interface ListenEvent {
   track: string
@@ -161,9 +163,24 @@ function buildUserPrompt(
   notes?: string,
   alreadyHeard?: string[],
   mode: ExploreMode = 50,
-  numSongs = 3
+  numSongs = 3,
+  cardHistory: ListenEvent[] = []
 ): string {
   let prompt = ''
+
+  const keyFromEvent = (e: Pick<ListenEvent, 'track' | 'artist'>): string =>
+    `${(e.track ?? '').toLowerCase().trim()}|${(e.artist ?? '').toLowerCase().trim()}`
+
+  const keyFromAlreadyHeard = (s: string): string => {
+    const raw = s.toLowerCase().replace(/\s+/g, ' ').trim()
+    // Common shape: "Track" by Artist
+    const idx = raw.lastIndexOf(' by ')
+    if (idx > 0) {
+      return `${raw.slice(0, idx).replace(/^"|"$/g, '').trim()}|${raw.slice(idx + 4).trim()}`
+    }
+    // Fallback: treat whole string as the "track" key with unknown artist.
+    return `${raw.replace(/^"|"$/g, '').trim()}|`
+  }
 
   if (notes?.trim()) {
     prompt += `USER CONSTRAINTS (must be followed for every song): ${notes.trim()}\n\n`
@@ -174,7 +191,25 @@ function buildUserPrompt(
   }
 
   if (alreadyHeard && alreadyHeard.length > 0) {
-    prompt += `DO NOT suggest any of these songs (already heard or queued):\n${alreadyHeard.map(s => `- ${s}`).join('\n')}\n\n`
+    // Avoid repeating: many "alreadyHeard" rows are also in cardHistory/sessionHistory.
+    const ratedKeys = new Set<string>()
+    for (const e of sessionHistory) ratedKeys.add(keyFromEvent(e))
+    for (const e of cardHistory) ratedKeys.add(keyFromEvent(e))
+
+    const deduped = [...new Set(alreadyHeard.map((s) => s.trim()).filter(Boolean))]
+    const filtered = deduped.filter((s) => !ratedKeys.has(keyFromAlreadyHeard(s)))
+    const omitted = deduped.length - filtered.length
+
+    const header = `DO NOT suggest any of these songs (already heard or queued)${
+      omitted > 0 ? ` — ${omitted} rated item(s) omitted (listed below with ★)` : ''
+    }:\n`
+
+    if (filtered.length > 0) {
+      prompt += header + filtered.map(s => `- ${s}`).join('\n') + '\n\n'
+    } else {
+      // Still signal that an exclusion list exists, even if fully covered by rating blocks.
+      prompt += header + `- [all exclusions are covered by rated history/session above]\n\n`
+    }
   }
 
 
@@ -191,6 +226,15 @@ function buildUserPrompt(
     return prompt
   }
 
+  const formatRatings = (rows: ListenEvent[]) =>
+    rows
+      .map(e => {
+        const pos = e.coords ? ` @ (${Math.round(e.coords.x)}, ${Math.round(e.coords.y)})` : ''
+        const rating = e.stars !== null && e.stars !== undefined ? `★${e.stars}` : '(skipped)'
+        return `- "${e.track}" by ${e.artist}: ${rating}${pos}`
+      })
+      .join('\n')
+
   if (sessionHistory.length > 0) {
     const forRatings =
       sessionHistory.length > MAX_SESSION_RATING_LINES
@@ -206,14 +250,29 @@ function buildUserPrompt(
       sessionHistory.length > forRatings.length
         ? 'Ratings this session (highest |rating−neutral| and most recent; context-safe subset):\n'
         : 'Ratings this session:\n'
-    const lines = forRatings
-      .map(e => {
-        const pos = e.coords ? ` @ (${Math.round(e.coords.x)}, ${Math.round(e.coords.y)})` : ''
-        const rating = e.stars !== null && e.stars !== undefined ? `★${e.stars}` : '(skipped)'
-        return `- "${e.track}" by ${e.artist}: ${rating}${pos}`
-      })
-      .join('\n')
-    prompt += header + lines + '\n\n'
+    prompt += header + formatRatings(forRatings) + '\n\n'
+  }
+
+  if (cardHistory.length > 0) {
+    const seenInSession = new Set(sessionHistory.map(e => `${e.track}|${e.artist}`))
+    const unique = cardHistory.filter(e => !seenInSession.has(`${e.track}|${e.artist}`))
+    if (unique.length > 0) {
+      const forRatings =
+        unique.length > MAX_CARD_RATING_LINES
+          ? selectInformativeByDivergence({
+              items: unique,
+              maxEntries: MAX_CARD_RATING_LINES,
+              getKey: e => `${e.artist.toLowerCase()}|${e.track.toLowerCase()}`,
+              getDivergence: musicDivergenceFromNeutral,
+              whenUnderMax: 'preserve-order',
+            })
+          : unique
+      const header =
+        unique.length > forRatings.length
+          ? 'Ratings history (curated — strongest signals and recent; context-safe subset):\n'
+          : 'Ratings history:\n'
+      prompt += header + formatRatings(forRatings) + '\n\n'
+    }
   }
 
   const hasLikes = sessionHistory.some(e => (e.stars ?? 0) >= 3.5) ||
@@ -235,7 +294,8 @@ async function askAnthropic(
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
-  numSongs?: number
+  numSongs?: number,
+  cardHistory?: ListenEvent[]
 ): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -248,7 +308,7 @@ async function askAnthropic(
       model: 'claude-opus-4-6',
       max_tokens: 3000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) }],
+      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs, cardHistory ?? []) }],
     }),
   })
   if (!res.ok) throw new Error(`Anthropic responded with ${res.status}`)
@@ -263,7 +323,8 @@ async function askOpenAI(
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
-  numSongs?: number
+  numSongs?: number,
+  cardHistory?: ListenEvent[]
 ): Promise<string> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -276,7 +337,7 @@ async function askOpenAI(
       max_tokens: 3000,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs, cardHistory ?? []) },
       ],
     }),
   })
@@ -292,7 +353,8 @@ async function askDeepSeek(
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
-  numSongs?: number
+  numSongs?: number,
+  cardHistory?: ListenEvent[]
 ): Promise<string> {
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
@@ -305,7 +367,7 @@ async function askDeepSeek(
       max_tokens: 3000,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs, cardHistory ?? []) },
       ],
     }),
   })
@@ -321,7 +383,8 @@ async function askGemini(
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
-  numSongs?: number
+  numSongs?: number,
+  cardHistory?: ListenEvent[]
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   const res = await fetch(
@@ -331,7 +394,7 @@ async function askGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) }] }],
+        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs, cardHistory ?? []) }] }],
         generationConfig: { maxOutputTokens: 3000 },
       }),
     }
@@ -354,14 +417,16 @@ export async function getNextSongQuery(
   priorProfile?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
-  numSongs?: number
+  numSongs?: number,
+  cardHistory?: ListenEvent[],
+  log?: { userKey: string; requestId: string; meta?: Record<string, unknown> }
 ): Promise<{ songs: SongSuggestion[]; profile?: string; suggestedArtists: string[] }> {
   const ask = () => {
     switch (provider) {
-      case 'openai': return askOpenAI(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
-      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
-      case 'gemini': return askGemini(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
-      default: return askAnthropic(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
+      case 'openai': return askOpenAI(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs, cardHistory)
+      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs, cardHistory)
+      case 'gemini': return askGemini(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs, cardHistory)
+      default: return askAnthropic(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs, cardHistory)
     }
   }
 
@@ -370,7 +435,29 @@ export async function getNextSongQuery(
     let raw: string
     try {
       raw = await ask()
-      console.log('LLM raw response', raw)
+      if (log) {
+        await writeLlmLog({
+          app: 'sounding',
+          type: 'soundings.next-song',
+          userKey: log.userKey,
+          requestId: log.requestId,
+          provider,
+          modelId: getLLMModelApiId(provider),
+          systemPrompt: SYSTEM_PROMPT,
+          userMessage: buildUserPrompt(
+            sessionHistory,
+            priorProfile,
+            artistConstraint,
+            notes,
+            alreadyHeard,
+            mode,
+            numSongs,
+            cardHistory ?? []
+          ),
+          responseText: raw,
+          meta: { attempt: attempt + 1, ...log.meta },
+        })
+      }
     } catch (err) {
       lastError = err as Error
       const msg = lastError.message || ''
@@ -379,7 +466,32 @@ export async function getNextSongQuery(
         console.warn(`[llm] provider ${provider} failed with auth error, switching to gemini fallback`)
         provider = 'gemini'
       }
-      if (attempt === MAX_LLM_ATTEMPTS - 1) throw err
+      if (attempt === MAX_LLM_ATTEMPTS - 1) {
+        if (log) {
+          await writeLlmLog({
+            app: 'sounding',
+            type: 'soundings.next-song',
+            userKey: log.userKey,
+            requestId: log.requestId,
+            provider,
+            modelId: getLLMModelApiId(provider),
+            systemPrompt: SYSTEM_PROMPT,
+            userMessage: buildUserPrompt(
+              sessionHistory,
+              priorProfile,
+              artistConstraint,
+              notes,
+              alreadyHeard,
+              mode,
+              numSongs,
+              cardHistory ?? []
+            ),
+            error: { message: msg || 'LLM request failed', stack: lastError.stack },
+            meta: { attempt: attempt + 1, ...log.meta },
+          })
+        }
+        throw err
+      }
       continue
     }
     try {
@@ -406,6 +518,30 @@ export async function getNextSongQuery(
       return result
     } catch (err) {
       lastError = err as Error
+      if (attempt === MAX_LLM_ATTEMPTS - 1 && log) {
+        await writeLlmLog({
+          app: 'sounding',
+          type: 'soundings.next-song',
+          userKey: log.userKey,
+          requestId: log.requestId,
+          provider,
+          modelId: getLLMModelApiId(provider),
+          systemPrompt: SYSTEM_PROMPT,
+          userMessage: buildUserPrompt(
+            sessionHistory,
+            priorProfile,
+            artistConstraint,
+            notes,
+            alreadyHeard,
+            mode,
+            numSongs,
+            cardHistory ?? []
+          ),
+          responseText: raw,
+          error: { message: lastError.message || 'LLM parse failed', stack: lastError.stack },
+          meta: { attempt: attempt + 1, stage: 'parse', ...log.meta },
+        })
+      }
       if (attempt === MAX_LLM_ATTEMPTS - 1) throw err
     }
   }

@@ -1,15 +1,16 @@
 import Link from 'next/link'
 import RequestAccessForm from '@/app/components/RequestAccessForm'
+import SplashAuthCard from '@/app/SplashAuthCard'
 
 const SHARED_DESC =
-  'One channel list can blend music stations and movie picks — jump into either experience below.'
+  'Film & Music is the umbrella for two sibling apps: Soundings for music and Trailer Vision for movies — neither product owns the other. An optional unified channel list can blend stations and picks from both.'
 const MUSIC_DESC =
   'Discovery with Spotify & YouTube: channels, queue, interactive graph.'
 const FILM_DESC =
   'Describe your taste, browse trailers, rate what you watched, save a watchlist.'
 
 /**
- * Mirrors `apps/sounding/app/page.tsx`: Film & Music umbrella, Soundings || Trailer Vision as equal pillars.
+ * Mirrors `apps/sounding/app/page.tsx`: sibling apps Soundings and Trailer Vision under Film & Music.
  */
 export default function SplashPage() {
   const loginUrl = '/api/auth/login'
@@ -37,36 +38,7 @@ export default function SplashPage() {
               <h2 className={`${appTitle} mt-5`}>Soundings</h2>
               <p className={`${appBody} mt-3`}>{MUSIC_DESC}</p>
             </div>
-            <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-              <a
-                href={loginUrl}
-                className="flex flex-col items-center gap-3 rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-5 transition-colors hover:border-zinc-500 hover:bg-zinc-900"
-              >
-                <svg viewBox="0 0 24 24" className="h-11 w-11 shrink-0" fill="#1DB954" aria-hidden>
-                  <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
-                </svg>
-                <div className="text-center">
-                  <span className="block text-base font-semibold text-white">Spotify</span>
-                  <span className="mt-1 block text-sm leading-snug text-zinc-300">
-                    Requires Premium · allowed-email list
-                  </span>
-                </div>
-              </a>
-              <a
-                href={ytUrl}
-                className="flex flex-col items-center gap-3 rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-5 transition-colors hover:border-zinc-500 hover:bg-zinc-900"
-              >
-                <svg viewBox="0 0 24 24" className="h-11 w-11 shrink-0" fill="#FF0000" aria-hidden>
-                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                </svg>
-                <div className="text-center">
-                  <span className="block text-base font-semibold text-white">YouTube</span>
-                  <span className="mt-1 block text-sm leading-snug text-zinc-300">
-                    No login · ~100 searches/day
-                  </span>
-                </div>
-              </a>
-            </div>
+            <SplashAuthCard loginUrl={loginUrl} ytUrl={ytUrl} />
             <div className="mt-8 border-t border-zinc-800 pt-8">
               <RequestAccessForm />
             </div>
@@ -97,12 +69,19 @@ export default function SplashPage() {
               <span className="text-5xl leading-none">🎬</span>
               <h2 className={`${appTitle} mt-5`}>Trailer Vision</h2>
               <p className={`${appBody} mt-3`}>{FILM_DESC}</p>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/nano-banano-photo.png"
-                alt="Trailer Vision"
-                className="mt-5 w-full rounded-2xl shadow-sm"
-              />
+              <Link
+                href="/trailer-visions"
+                prefetch={false}
+                aria-label="Open Trailer Vision"
+                className="group mt-5 block w-full shrink-0 cursor-pointer overflow-hidden rounded-2xl shadow-sm outline-none ring-2 ring-transparent ring-offset-2 ring-offset-zinc-900 transition hover:opacity-95 hover:ring-sky-500/40 focus-visible:ring-sky-400"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/nano-banano-photo.png"
+                  alt=""
+                  className="block w-full rounded-2xl transition group-hover:scale-[1.01]"
+                />
+              </Link>
               <div className="mt-8 flex min-h-[12rem] flex-1 flex-col gap-8 sm:min-h-0">
                 <div className="flex flex-wrap justify-center gap-2">
                   {['AI recs', 'Trailers', 'Watchlist', 'Ratings'].map((tag) => (
@@ -117,6 +96,7 @@ export default function SplashPage() {
                 <div className="flex-1 sm:min-h-8" aria-hidden />
                 <Link
                   href="/trailer-visions"
+                  prefetch={false}
                   className="inline-flex w-full max-w-[18rem] items-center justify-center self-center rounded-xl bg-sky-600 px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-sky-500"
                 >
                   Open Trailer Vision
@@ -127,7 +107,7 @@ export default function SplashPage() {
         </div>
 
         <p className="mt-10 pb-8 text-center text-sm leading-relaxed text-zinc-400">
-          Channels are shared — mix music and movies in one list.
+          A unified channel list can mix Station rows (Soundings) and movie picks (Trailer Vision) — sibling apps sharing a combined list only when you configure it.
         </p>
       </div>
     </div>

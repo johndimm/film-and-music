@@ -1,5 +1,6 @@
 import { callLLM } from "../next-movie/llm";
 import { type RatingEntry } from "../next-movie/route";
+import crypto from "node:crypto";
 import {
   migrateRatingValue,
   movieDivergenceScore,
@@ -14,6 +15,7 @@ export async function POST(request: Request) {
     watchlistSignals?: { title: string; rtScore?: string | null }[];
     notInterestedSignals?: { title: string; rtScore?: string | null }[];
     existingSummary?: string;
+    sessionId?: string;
     llm?: string;
   };
 
@@ -83,7 +85,26 @@ Dismissed despite HIGH RT (dislikes what critics love): ${skipText}`;
   const start = Date.now();
   let summary: string;
   try {
-    summary = await callLLM(llm, systemPrompt, userMessage, { maxTokens: 256 });
+    const requestId = crypto.randomBytes(8).toString("hex");
+    const userKey = raw.sessionId ? `tv-${raw.sessionId}` : "tv-anon";
+    summary = await callLLM(
+      llm,
+      systemPrompt,
+      userMessage,
+      { maxTokens: 256 },
+      {
+        app: "sounding",
+        type: "trailer-vision.taste-summary",
+        userKey,
+        requestId,
+        meta: {
+          ratingsTotal: history.length,
+          watchlistSignals: watchlistSignals.length,
+          notInterestedSignals: notInterestedSignals.length,
+          hasExistingSummary: Boolean(raw.existingSummary),
+        },
+      }
+    );
     console.log(`[taste-summary] done (${llm}) in ${((Date.now() - start) / 1000).toFixed(1)}s`);
   } catch (err) {
     console.error("[taste-summary] LLM failed:", err);

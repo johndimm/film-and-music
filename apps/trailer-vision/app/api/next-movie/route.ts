@@ -58,6 +58,7 @@ interface RawItem {
 }
 
 import { callLLM } from "./llm";
+import crypto from "node:crypto";
 import { resolveHistoryForPrompt } from "./historySessionStore";
 import {
   migrateRatingValue,
@@ -430,6 +431,8 @@ export async function POST(request: Request) {
   const mediaType = raw.mediaType ?? "both";
   const llm = raw.llm ?? "deepseek";
   const countRaw = raw.count;
+  const requestId = crypto.randomBytes(8).toString("hex");
+  const userKey = raw.sessionId ? `tv-${raw.sessionId}` : "tv-anon";
 
   const merged = resolveHistoryForPrompt(raw.sessionId, raw.historySync, {
     history: raw.history,
@@ -573,7 +576,25 @@ ${history.length === 0 && allExcluded.length === 0
   let text: string;
   const llmStart = Date.now();
   try {
-    text = await callLLM(llm, systemPrompt, userMessage, { maxTokens: LLM_OUTPUT_MAX_TOKENS });
+    text = await callLLM(
+      llm,
+      systemPrompt,
+      userMessage,
+      { maxTokens: LLM_OUTPUT_MAX_TOKENS },
+      {
+        app: "trailer-vision",
+        type: "trailer-vision.next-movie",
+        userKey,
+        requestId,
+        meta: {
+          historySync: raw.historySync ?? null,
+          mediaType,
+          count: countRaw ?? null,
+          hasUserRequest: Boolean(userRequest),
+          hasChannel: Boolean(activeChannel && activeChannel.id !== "all"),
+        },
+      }
+    );
     const llmMs = Date.now() - llmStart;
     console.log(`[next-movie] LLM done (${llm}) in ${(llmMs / 1000).toFixed(1)}s — output ${text.length} chars`);
   } catch (err) {

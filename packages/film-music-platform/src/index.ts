@@ -27,6 +27,8 @@ export {
 export type { TrailerCareerFilm, TrailerCareerMode, MusicCareerWork, MusicCareerMode } from './career'
 export { CAREER_API, careerUi, careerPersonNameMatch } from './career'
 export { unifiedPlatformConfig } from './config/unified'
+export { splitLlmListSegments } from './splitLlmListSegments'
+export { LlmBulletedText } from './LlmBulletedText'
 export { musicPlatformConfig } from './extensions/music'
 export { moviesPlatformConfig } from './extensions/movies'
 export { AppShell } from './shell/AppShell'

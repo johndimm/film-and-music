@@ -317,6 +317,27 @@ export default function SettingsPage() {
 
         </div>
 
+        {/* Same server viewer as Soundings — next-movie LLM rows are labeled type trailer-vision.next-movie under app sounding */}
+        <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-4 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-zinc-800">LLM logs</p>
+            <p className="text-xs text-zinc-600">
+              Movie recommendations hit the shared log pipeline when{' '}
+              <code className="rounded bg-zinc-100 px-1 py-0.5 text-[11px]">LLM_LOG_LEVEL</code> is set on the server. In
+              the viewer, pick app <strong className="font-medium text-zinc-800">sounding</strong>, then type{' '}
+              <code className="rounded bg-zinc-100 px-1 py-0.5 text-[11px]">trailer-vision.next-movie</code>.
+            </p>
+          </div>
+          <div>
+            <a
+              href="/trailer-visions/logs"
+              className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
+            >
+              Open log viewer
+            </a>
+          </div>
+        </div>
+
         {/* Backup */}
         <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-4 space-y-4">
           <div>

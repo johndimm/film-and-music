@@ -55,7 +55,7 @@ function Inner({
 }
 
 /**
- * Constellations graph under the main trailer / poster block — same package as Soundings, props-driven
+ * Constellations graph under the main trailer / poster block — `@film-music/constellations`, props-driven (code shared with Soundings, not a sub-app)
  * (no now-playing bridge).
  */
 export default function TrailerVisionConstellationsEmbed({

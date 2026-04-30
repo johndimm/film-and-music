@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useId, useMemo, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, memo, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { Channel } from "./lib/channel";
@@ -29,6 +30,10 @@ import {
 import { graphNodeToChannelSeeds } from "@/app/lib/constellations/utils/graphNodeToChannelNotes";
 import type { GraphNode } from "@/app/lib/constellations/types";
 import { canonicalTitleKey } from "./lib/canonicalTitleKey";
+import {
+  mergeLlmDiscardFatigueIntoExcluded,
+  recordDuplicateLlmSuggestionDiscard,
+} from "./lib/llmSuggestionFatigue";
 import { pushUnseenInterestEntry, type UnseenInterestEntry } from "./lib/unseenInterestLog";
 
 const TrailerVisionConstellationsEmbed = dynamic(
@@ -54,6 +59,8 @@ interface YTPlayer {
   destroy(): void;
   getPlayerState?(): number;
   playVideo?(): void;
+  pauseVideo?(): void;
+  stopVideo?(): void;
 }
 
 // Loads https://www.youtube.com/iframe_api once; resolves when YT.Player is available.
@@ -101,6 +108,25 @@ function loadYouTubeApi(): Promise<void> {
       if (window.YT?.Player) flushYtReady();
     }, 0);
   });
+}
+
+function pauseYouTubePlayer(p: YTPlayer | null | undefined) {
+  if (!p) return;
+  try {
+    p.pauseVideo?.();
+  } catch {
+    /* ignore */
+  }
+}
+
+function silenceYouTubePlayer(p: YTPlayer | null | undefined) {
+  if (!p) return;
+  pauseYouTubePlayer(p);
+  try {
+    p.stopVideo?.();
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Server merges full rating list in memory; client avoids resending it every request (delta / reuse). */
@@ -261,6 +287,7 @@ const StarRow = memo(function StarRow({
   compact = false,
   /** Smaller controls when Prev/Next share the row (mobile) — keeps stars from overlapping */
   careerNavTight = false,
+  hideLabel = false,
 }: {
   filled: number;
   color: "red" | "blue";
@@ -269,6 +296,7 @@ const StarRow = memo(function StarRow({
   /** Tighter label + stars for single-line toolbar layout */
   compact?: boolean;
   careerNavTight?: boolean;
+  hideLabel?: boolean;
 }) {
   const [hover, setHover] = useState(0);
   /** Value from last click — keeps stars lit after pointer leaves (hover clears on mouseleave). */
@@ -296,11 +324,15 @@ const StarRow = memo(function StarRow({
     <div
       className={`flex min-w-0 flex-wrap items-center ${compact ? "justify-center gap-x-2 gap-y-1 sm:gap-x-3 sm:gap-y-0" : "gap-3"}`}
     >
-      <span
-        className={`font-medium text-zinc-200 shrink-0 leading-snug ${labelClass}`}
-      >
-        {label}
-      </span>
+      {hideLabel ? (
+        <span className="sr-only">{label}</span>
+      ) : (
+        <span
+          className={`font-medium text-zinc-200 shrink-0 leading-snug ${labelClass}`}
+        >
+          {label}
+        </span>
+      )}
       <div className={`flex min-w-0 shrink items-center ${compact ? "gap-0.5 sm:gap-1" : "gap-1"}`} onMouseLeave={() => setHover(0)}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button
@@ -415,54 +447,55 @@ const PassNextButton = memo(function PassNextButton({
   );
 });
 
-/** Native radios: "Seen it" vs "Not yet" — mutually exclusive, proper keyboard + SR semantics. */
-const SeenOrNotRadios = memo(function SeenOrNotRadios({
-  name,
+/**
+ * Single control for trailer + fullscreen: Interest (not seen → blue stars) vs Rating (seen → red stars).
+ * Same labels as `StarRow` — no duplicate “Seen it / Not yet” copy.
+ */
+const RatingModeToggle = memo(function RatingModeToggle({
   value,
   onChange,
+  density,
+  rowClassName,
 }: {
-  name: string;
   value: "unseen" | null;
   onChange: (v: "unseen" | null) => void;
+  density: "bar" | "overlay";
+  rowClassName?: string;
 }) {
+  const wrap =
+    density === "overlay"
+      ? "flex shrink-0 overflow-hidden rounded-lg border border-zinc-600/85 bg-black/82 p-0.5 shadow-lg backdrop-blur-sm"
+      : "inline-flex overflow-hidden rounded-lg border border-zinc-600/80 bg-zinc-900/90 p-0.5 shadow-sm";
+  const seg =
+    "min-w-[4.5rem] rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors sm:min-w-[5rem] sm:px-3 sm:text-sm";
+  const inactive = "text-zinc-400 hover:bg-zinc-800/90 hover:text-zinc-200";
+  const inner = (
+    <div
+      role="group"
+      aria-label="Scoring mode — Interest if you have not seen this title, Rating if you have"
+      className={wrap}
+    >
+      <button
+        type="button"
+        aria-pressed={value === "unseen"}
+        onClick={() => onChange("unseen")}
+        className={`${seg} ${value === "unseen" ? "bg-blue-600/90 text-white shadow-sm" : inactive}`}
+      >
+        Interest
+      </button>
+      <button
+        type="button"
+        aria-pressed={value === null}
+        onClick={() => onChange(null)}
+        className={`${seg} ${value === null ? "bg-red-600/90 text-white shadow-sm" : inactive}`}
+      >
+        Rating
+      </button>
+    </div>
+  );
+  if (density === "overlay") return inner;
   return (
-    <fieldset className="min-w-0 border-0 p-0 m-0">
-      <legend className="sr-only">Have you seen this title?</legend>
-      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:gap-6">
-        <label
-          className={`inline-flex cursor-pointer touch-manipulation items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] sm:text-xs font-medium transition-colors ${
-            value === null
-              ? "border-zinc-600 bg-zinc-800 text-white shadow-sm"
-              : "border-transparent text-zinc-500 hover:bg-zinc-800/60"
-          }`}
-        >
-          <input
-            type="radio"
-            name={name}
-            className="h-3.5 w-3.5 shrink-0 accent-zinc-900 sm:h-4 sm:w-4"
-            checked={value === null}
-            onChange={() => onChange(null)}
-          />
-          <span>Seen it</span>
-        </label>
-        <label
-          className={`inline-flex cursor-pointer touch-manipulation items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] sm:text-xs font-medium transition-colors ${
-            value === "unseen"
-              ? "border-zinc-600 bg-zinc-800 text-white shadow-sm"
-              : "border-transparent text-zinc-500 hover:bg-zinc-800/60"
-          }`}
-        >
-          <input
-            type="radio"
-            name={name}
-            className="h-3.5 w-3.5 shrink-0 accent-zinc-900 sm:h-4 sm:w-4"
-            checked={value === "unseen"}
-            onChange={() => onChange("unseen")}
-          />
-          <span>Not yet</span>
-        </label>
-      </div>
-    </fieldset>
+    <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-x-5 ${rowClassName ?? "justify-center"}`}>{inner}</div>
   );
 });
 
@@ -475,8 +508,7 @@ function MovieCardSkeleton({ mode }: { mode: "trailers" | "posters" }) {
     <div className="rounded-xl border border-zinc-700 bg-zinc-900 px-2 py-2 sm:px-3 sm:py-2.5">
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-          <div className="h-8 w-24 animate-pulse rounded-lg bg-zinc-700" />
-          <div className="h-8 w-24 animate-pulse rounded-lg bg-zinc-700" />
+          <div className="h-9 w-[13.5rem] animate-pulse rounded-lg bg-zinc-700 sm:w-[14rem]" />
         </div>
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
           <div className="h-12 w-56 max-w-[min(100%,22rem)] animate-pulse rounded-lg bg-zinc-800 sm:h-14 sm:w-64" />
@@ -489,10 +521,15 @@ function MovieCardSkeleton({ mode }: { mode: "trailers" | "posters" }) {
   if (mode === "trailers") {
     const trailerBarSkeleton = (
       <div className="border-b border-zinc-800/90 bg-zinc-950/60 py-2.5 sm:py-3" aria-hidden>
-        <div className="mx-auto flex min-w-0 max-w-3xl flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-            <div className="h-8 w-24 animate-pulse rounded-lg bg-zinc-800" />
-            <div className="h-8 w-24 animate-pulse rounded-lg bg-zinc-800" />
+        <div className="mx-auto flex min-w-0 max-w-3xl flex-col gap-3">
+          <div className="flex min-w-0 w-full flex-wrap items-center justify-between gap-x-3 gap-y-2 px-px">
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <div className="h-9 w-[13.5rem] animate-pulse rounded-lg bg-zinc-800 sm:w-[14rem]" />
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <div className="h-8 w-[4.75rem] animate-pulse rounded-lg bg-zinc-800 sm:w-[5.25rem]" />
+              <div className="h-8 w-[3rem] animate-pulse rounded-lg bg-zinc-800" />
+            </div>
           </div>
           <div className="flex min-w-0 items-center justify-between gap-3">
             <div className="mx-auto h-10 max-w-md flex-1 animate-pulse rounded-lg bg-zinc-800" />
@@ -758,6 +795,7 @@ const TrailerPlayer = memo(function TrailerPlayer({
           modestbranding: 1,
           playsinline: 1,
           enablejsapi: 1,
+          /** Hides YT fullscreen; embed can still FS in some cases — we bounce iframe FS to app chrome (see Home fullscreen listener). */
           fs: 0,
           ...(origin ? { origin } : {}),
         },
@@ -816,6 +854,7 @@ const TrailerPlayer = memo(function TrailerPlayer({
         if (p && !p.isMuted()) {
           _lastVolume = p.getVolume();
         }
+        silenceYouTubePlayer(p);
         p?.destroy();
       } catch {
         /* ignore */
@@ -836,19 +875,34 @@ const TrailerPlayer = memo(function TrailerPlayer({
     }
   }, [videoId]);
 
-  // When returning to the tab, resume playback if the player stalled (state 2=paused, -1=unstarted, 5=cued).
+  // Pause while the tab is hidden (avoid stopVideo — it can leave the iframe blank until reload). Stop on unload/unmount.
   useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState !== "visible") return;
+    const onVisibility = () => {
       try {
         const p = playerRef.current;
         if (!p) return;
+        if (document.visibilityState === "hidden") {
+          pauseYouTubePlayer(p);
+          return;
+        }
         const state = p.getPlayerState?.();
-        if (state === 2 || state === -1 || state === 5) p.playVideo?.();
-      } catch { /* ignore */ }
+        const Y = window.YT;
+        const playing = Y?.PlayerState?.PLAYING ?? 1;
+        const buffering = Y?.PlayerState?.BUFFERING ?? 3;
+        if (state !== playing && state !== buffering) p.playVideo?.();
+      } catch {
+        /* ignore */
+      }
     };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    const onLeave = () => silenceYouTubePlayer(playerRef.current);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onLeave);
+    window.addEventListener("beforeunload", onLeave);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onLeave);
+      window.removeEventListener("beforeunload", onLeave);
+    };
   }, []);
 
   return (
@@ -860,13 +914,26 @@ const TrailerPlayer = memo(function TrailerPlayer({
   );
 });
 
-const ShareButton = memo(function ShareButton({ onClick, toast }: { onClick: () => void; toast: "copying" | "copied" | null }) {
+const ShareButton = memo(function ShareButton({
+  onClick,
+  toast,
+  videoChrome,
+}: {
+  onClick: () => void;
+  toast: "copying" | "copied" | null;
+  /** Styles for dark overlay on the trailer (vs metadata row below the video). */
+  videoChrome?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={toast === "copying"}
-      className="shrink-0 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-50"
+      className={`shrink-0 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-50 sm:px-2.5 sm:text-xs ${
+        videoChrome
+          ? "text-zinc-100 hover:bg-white/15"
+          : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+      }`}
       title="Share this title"
     >
       {toast === "copied" ? (
@@ -1104,6 +1171,11 @@ const MovieRatingBlock = memo(function MovieRatingBlock({
   layout = "card",
   careerPrevNav = null,
   careerNextDisabled = false,
+  /** Fullscreen trailer: Interest/Rating toggle, stars, and Next in top overlay (same state as trailer bar). */
+  trailerFullscreen = false,
+  trailerBarTopEnd = null,
+  /** When fullscreen: portal stars + Next into this element (top-right over video). */
+  fullscreenTopChromeMount = null,
 }: {
   passCurrentCardStable: () => void;
   onRate: (stars: number, mode: "seen" | "unseen") => void;
@@ -1121,8 +1193,10 @@ const MovieRatingBlock = memo(function MovieRatingBlock({
   careerPrevNav?: { onPass: () => void; disabled: boolean } | null;
   /** Career mode: disable Next on last film in filmography (passCurrentCard is a no-op there). */
   careerNextDisabled?: boolean;
+  trailerFullscreen?: boolean;
+  trailerBarTopEnd?: ReactNode;
+  fullscreenTopChromeMount?: HTMLElement | null;
 }) {
-  const seenRadioGroupName = useId();
   const hasPrev = previousRating !== undefined && previousRating > 0;
   const initialSeen = hasPrev ? (previousMode === "unseen" ? "unseen" : null) : (defaultSeen ? null : "unseen");
   const [seenStatus, setSeenStatus] = useState<"unseen" | null>(() => initialSeen);
@@ -1151,6 +1225,7 @@ const MovieRatingBlock = memo(function MovieRatingBlock({
       key={`${starKeyPrefix}-seen-${movieTitle}`}
       compact
       careerNavTight={navPairTight}
+      hideLabel
       filled={displayFilled}
       color="red"
       label="Rating"
@@ -1161,6 +1236,7 @@ const MovieRatingBlock = memo(function MovieRatingBlock({
       key={`${starKeyPrefix}-unseen-${movieTitle}`}
       compact
       careerNavTight={navPairTight}
+      hideLabel
       filled={displayFilled}
       color="blue"
       label="Interest"
@@ -1207,14 +1283,83 @@ const MovieRatingBlock = memo(function MovieRatingBlock({
     </div>
   );
 
+  const seenOrNotPair =
+    layout === "trailerBar" && trailerBarTopEnd ? (
+      <div className="flex min-w-0 w-full flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <RatingModeToggle
+          density="bar"
+          value={seenStatus}
+          onChange={onSeenStatusChange}
+          rowClassName="justify-start"
+        />
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">{trailerBarTopEnd}</div>
+      </div>
+    ) : (
+      <RatingModeToggle density="bar" value={seenStatus} onChange={onSeenStatusChange} />
+    );
+
   const ratingBody = (
     <div className="flex min-w-0 flex-col gap-3">
-      <SeenOrNotRadios name={seenRadioGroupName} value={seenStatus} onChange={onSeenStatusChange} />
+      {seenOrNotPair}
       {navRow}
     </div>
   );
 
+  /** Fullscreen: Interest vs Rating toggle (replaces Seen/Not radios). */
+  const fullscreenModeToggle = (
+    <div
+      role="group"
+      aria-label="Interest if you have not seen the film, Rating if you have"
+      className="flex shrink-0 overflow-hidden rounded-lg border border-zinc-600/85 bg-black/82 p-0.5 shadow-lg backdrop-blur-sm"
+    >
+      <button
+        type="button"
+        aria-pressed={seenStatus === "unseen"}
+        onClick={() => setSeenStatus("unseen")}
+        className={`min-w-[4.25rem] rounded-md px-2 py-1 text-[11px] font-semibold transition-colors sm:min-w-[4.75rem] sm:px-2.5 sm:text-xs ${
+          seenStatus === "unseen"
+            ? "bg-blue-600/90 text-white shadow-sm"
+            : "text-zinc-400 hover:bg-zinc-800/90 hover:text-zinc-200"
+        }`}
+      >
+        Interest
+      </button>
+      <button
+        type="button"
+        aria-pressed={seenStatus === null}
+        onClick={() => setSeenStatus(null)}
+        className={`min-w-[4.25rem] rounded-md px-2 py-1 text-[11px] font-semibold transition-colors sm:min-w-[4.75rem] sm:px-2.5 sm:text-xs ${
+          seenStatus === null
+            ? "bg-red-600/90 text-white shadow-sm"
+            : "text-zinc-400 hover:bg-zinc-800/90 hover:text-zinc-200"
+        }`}
+      >
+        Rating
+      </button>
+    </div>
+  );
+
+  const fullscreenTopChrome =
+    trailerFullscreen && fullscreenTopChromeMount && showNextInRating ? (
+      <div className="flex max-w-full flex-wrap items-center justify-end gap-2 sm:gap-3">
+        {fullscreenModeToggle}
+        <div className="rounded-xl border border-zinc-600/85 bg-black/82 px-2 py-1 shadow-lg backdrop-blur-sm sm:px-2.5 sm:py-1.5">
+          {starBlock}
+        </div>
+        <PassNextButton onPass={passCurrentCardStable} prominent disabled={careerNextDisabled} />
+      </div>
+    ) : null;
+
   if (layout === "trailerBar") {
+    if (trailerFullscreen) {
+      return (
+        <>
+          {fullscreenTopChrome && fullscreenTopChromeMount
+            ? createPortal(fullscreenTopChrome, fullscreenTopChromeMount)
+            : null}
+        </>
+      );
+    }
     return (
       <div className={TRAILER_BAR_OUTER}>
         <div className="mx-auto w-full min-w-0 max-w-3xl px-2 sm:px-3">{ratingBody}</div>
@@ -1443,6 +1588,22 @@ const ChannelsToolbar = memo(function ChannelsToolbar({
   );
 });
 
+/** Cross-vendor fullscreen leaf (often the YouTube iframe, not our wrapper). */
+function getDocumentFullscreenElement(): Element | null {
+  const d = document as Document & {
+    webkitFullscreenElement?: Element | null;
+    mozFullScreenElement?: Element | null;
+    msFullscreenElement?: Element | null;
+  };
+  return (
+    document.fullscreenElement ??
+    d.webkitFullscreenElement ??
+    d.mozFullScreenElement ??
+    d.msFullscreenElement ??
+    null
+  );
+}
+
 export default function Home() {
   /** Persisted lists — refs only on this page (nothing in the tree reads them for render). Updates skip full-tree re-renders. */
   const historyRef = useRef<RatingEntry[]>([]);
@@ -1473,6 +1634,7 @@ export default function Home() {
   const [llm, setLlm] = useState<string>(() => loadSetting("llm", "deepseek"));
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isTrailerFullscreen, setIsTrailerFullscreen] = useState(false);
+  const [fullscreenTopChromeMount, setFullscreenTopChromeMount] = useState<HTMLDivElement | null>(null);
   const [shareToast, setShareToast] = useState<"copying" | "copied" | null>(null);
   const [careerMode, setCareerMode] = useState<TrailerCareerMode | null>(null);
   const [careerLoading, setCareerLoading] = useState(false);
@@ -1483,6 +1645,7 @@ export default function Home() {
   watchFracRef.current = watchFrac;
   const cardRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  const youtubeIframeFsBounceRef = useRef(false);
   /** In career+trailers, min height of the top media block while the next title loads (avoids 16:9 video → short placeholder jump). */
   const careerTrailerBlockRef = useRef<HTMLDivElement>(null);
   const [careerTrailerBlockStableH, setCareerTrailerBlockStableH] = useState(0);
@@ -1617,13 +1780,62 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  useEffect(() => {
-    const onChange = () => {
-      setIsTrailerFullscreen(document.fullscreenElement === videoContainerRef.current);
-    };
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
+  const syncTrailerFullscreenFromDom = useCallback(() => {
+    const el = getDocumentFullscreenElement();
+    const root = videoContainerRef.current;
+    setIsTrailerFullscreen(!!(root && el && (root === el || root.contains(el))));
   }, []);
+
+  useEffect(() => {
+    const onFullscreenEvent = () => {
+      const root = videoContainerRef.current;
+      const el = getDocumentFullscreenElement();
+
+      if (
+        root &&
+        el &&
+        el !== root &&
+        root.contains(el) &&
+        el instanceof HTMLIFrameElement &&
+        currentRef.current?.trailerKey &&
+        !youtubeIframeFsBounceRef.current
+      ) {
+        youtubeIframeFsBounceRef.current = true;
+        void (async () => {
+          try {
+            await document.exitFullscreen?.();
+          } catch {
+            /* ignore */
+          }
+          await new Promise<void>((r) => {
+            requestAnimationFrame(() => r());
+          });
+          try {
+            await root.requestFullscreen?.();
+          } catch {
+            /* ignore */
+          } finally {
+            youtubeIframeFsBounceRef.current = false;
+            syncTrailerFullscreenFromDom();
+          }
+        })();
+        return;
+      }
+
+      syncTrailerFullscreenFromDom();
+      requestAnimationFrame(() => {
+        syncTrailerFullscreenFromDom();
+      });
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenEvent);
+    document.addEventListener("webkitfullscreenchange", onFullscreenEvent as EventListener);
+    onFullscreenEvent();
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenEvent);
+      document.removeEventListener("webkitfullscreenchange", onFullscreenEvent as EventListener);
+    };
+  }, [syncTrailerFullscreenFromDom]);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
@@ -1917,12 +2129,19 @@ export default function Home() {
         for (const p of passedRef.current) excluded.add(canonicalTitleKey(p));
         for (const w of watchlistRef.current) excluded.add(canonicalTitleKey(w.title));
         for (const m of prefetchRef.current) excluded.add(canonicalTitleKey(m.title));
+        mergeLlmDiscardFatigueIntoExcluded(excluded);
 
         for (const movie of movies) {
           const key = canonicalTitleKey(movie.title);
           seenThisBatch.add(key);
-          if (prefetchRef.current.some((m) => canonicalTitleKey(m.title) === key)) continue;
-          if (excluded.has(key)) continue;
+          if (prefetchRef.current.some((m) => canonicalTitleKey(m.title) === key)) {
+            recordDuplicateLlmSuggestionDiscard(movie.title);
+            continue;
+          }
+          if (excluded.has(key)) {
+            recordDuplicateLlmSuggestionDiscard(movie.title);
+            continue;
+          }
           excluded.add(key);
           prefetchRef.current = [...prefetchRef.current, movie];
           freshCount++;
@@ -1970,7 +2189,9 @@ export default function Home() {
         for (const s of skippedRef.current) excluded.add(canonicalTitleKey(s));
         for (const p of passedRef.current) excluded.add(canonicalTitleKey(p));
         for (const w of watchlistRef.current) excluded.add(canonicalTitleKey(w.title));
+        mergeLlmDiscardFatigueIntoExcluded(excluded);
         if (excluded.has(canonicalTitleKey(next.title))) continue; // already seen — discard silently
+        if (opts.mediaType !== "both" && next.type !== opts.mediaType) continue; // Movies vs TV filter
         persistPrefetchQueue();
         setCurrent(next);
         setInitialLoading(false);
@@ -2294,18 +2515,17 @@ export default function Home() {
     el.scrollIntoView({ behavior: "auto", block: "nearest" });
   }, [current?.title]);
 
-  // When mediaType changes, replace the current card if it doesn't match
+  // When mediaType or the current card disagrees with the filter, drop wrong-type queue rows and advance.
   useEffect(() => {
     if (!current) return;
-    if (mediaType !== "both" && current.type !== mediaType) {
-      replenishGenRef.current += 1;
-      replenishGenInFlight.current = 0;
-      prefetchRef.current = [];
-      persistPrefetchQueue();
-      batchYieldRef.current = [];
-      fetchNext({ mediaType, llm });
-    }
-  }, [mediaType]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (mediaType === "both" || current.type === mediaType) return;
+    replenishGenRef.current += 1;
+    replenishGenInFlight.current = 0;
+    prefetchRef.current = prefetchRef.current.filter((m) => m.type === mediaType);
+    persistPrefetchQueue();
+    batchYieldRef.current = [];
+    void fetchNext({ mediaType, llm }, prefetchRef.current.length > 0);
+  }, [mediaType, current?.type, current?.title, llm, fetchNext, persistPrefetchQueue]);
 
   // When userRequest changes (debounced 600ms), flush the prefetch queue so
   // upcoming cards reflect the new request rather than stale pre-fetched batches.
@@ -3042,48 +3262,80 @@ export default function Home() {
                   }
                 >
                   {current.trailerKey ? (
-                    <div ref={videoContainerRef} className="relative bg-black">
-                      <TrailerPlayer
-                        videoId={current.trailerKey}
-                        onProgress={setWatchFrac}
-                        onPlaybackError={handleTrailerPlaybackError}
-                        resumeFromFraction={trailerResumeByChannel[activeChannelId]?.[canonicalTitleKey(current.title)]}
+                    <div ref={videoContainerRef} data-trailer-fs-root className="flex flex-col bg-black">
+                      {/* Single aspect box from TrailerPlayer — avoid nested aspect-video (broken height / jitter). */}
+                      <div className="relative w-full shrink-0">
+                        <TrailerPlayer
+                          videoId={current.trailerKey}
+                          onProgress={setWatchFrac}
+                          onPlaybackError={handleTrailerPlaybackError}
+                          resumeFromFraction={trailerResumeByChannel[activeChannelId]?.[canonicalTitleKey(current.title)]}
+                        />
+                        {isTrailerFullscreen && (
+                          <>
+                            <button
+                              type="button"
+                              onPointerDown={(e) => e.preventDefault()}
+                              onClick={() => document.exitFullscreen?.()}
+                              className="absolute left-3 top-3 z-50 rounded-xl bg-black/55 p-2.5 text-white/85 hover:bg-black/80 hover:text-white transition-colors select-none sm:left-4 sm:top-4"
+                              title="Exit fullscreen"
+                              aria-label="Exit fullscreen"
+                            >
+                              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4M15 9l5-5m0 0v4m0-4h-4M9 15l-5 5m0 0v-4m0 4h4M15 15l5 5m0 0v-4m0 4h-4" />
+                              </svg>
+                            </button>
+                            <div
+                              ref={setFullscreenTopChromeMount}
+                              className="pointer-events-auto absolute right-3 top-3 z-50 flex max-w-[calc(100%-5rem)] items-center sm:right-4 sm:top-4"
+                              aria-label="Fullscreen trailer actions"
+                            />
+                          </>
+                        )}
+                      </div>
+                      <MovieRatingBlock
+                        layout="trailerBar"
+                        trailerFullscreen={isTrailerFullscreen}
+                        fullscreenTopChromeMount={fullscreenTopChromeMount}
+                        trailerBarTopEnd={
+                          !isTrailerFullscreen ? (
+                            <>
+                              <button
+                                type="button"
+                                onPointerDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  const el = videoContainerRef.current;
+                                  if (!el?.requestFullscreen) return;
+                                  void Promise.resolve(el.requestFullscreen())
+                                    .finally(() => {
+                                      syncTrailerFullscreenFromDom();
+                                    })
+                                    .catch(() => {});
+                                }}
+                                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-700/80 bg-zinc-900/80 px-2.5 py-1.5 text-[11px] font-medium text-zinc-100 transition-colors hover:bg-zinc-800 sm:text-xs"
+                                title="Fullscreen — ratings and Next stay below the video"
+                                aria-label="Enter fullscreen"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                </svg>
+                                Fullscreen
+                              </button>
+                              <ShareButton onClick={handleShare} toast={shareToast} />
+                            </>
+                          ) : null
+                        }
+                        passCurrentCardStable={passCurrentCardStable}
+                        onRate={handlePendingChange}
+                        movieTitle={current.title}
+                        starKeyPrefix="tr"
+                        watchFrac={watchFrac}
+                        defaultSeen={activeChannelId === "all"}
+                        previousRating={historyRef.current.find((e) => e.title === current.title)?.userRating}
+                        previousMode={historyRef.current.find((e) => e.title === current.title)?.ratingMode}
+                        careerPrevNav={careerPrevNav}
+                        careerNextDisabled={careerAtLastFilm}
                       />
-                      {/* Fullscreen: overlay Next + exit */}
-                      {isTrailerFullscreen && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={careerAtLastFilm}
-                            onPointerDown={(e) => e.preventDefault()}
-                            onClick={passCurrentCardStable}
-                            className={`fixed top-5 right-5 z-50 inline-flex items-center gap-2 rounded-xl border-2 px-6 py-3 text-base font-semibold shadow-lg transition-all select-none ${
-                              careerAtLastFilm
-                                ? "cursor-not-allowed border-zinc-600 bg-zinc-800 text-zinc-500 shadow-none opacity-60"
-                                : "border-indigo-200/90 bg-indigo-600 text-white shadow-indigo-950/40 hover:bg-indigo-500 hover:border-white/90"
-                            }`}
-                            title={careerAtLastFilm ? "No more titles in this list" : "Go to the next title"}
-                            aria-label={careerAtLastFilm ? "No next title" : "Next title"}
-                          >
-                            Next
-                            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                              <path fillRule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clipRule="evenodd" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onPointerDown={(e) => e.preventDefault()}
-                            onClick={() => document.exitFullscreen?.()}
-                            className="fixed top-5 left-5 z-50 rounded-xl bg-black/50 p-2.5 text-white/70 hover:bg-black/80 hover:text-white transition-colors select-none"
-                            title="Exit fullscreen"
-                            aria-label="Exit fullscreen"
-                          >
-                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4M15 9l5-5m0 0v4m0-4h-4M9 15l-5 5m0 0v-4m0 4h4M15 15l5 5m0 0v-4m0 4h-4" />
-                            </svg>
-                          </button>
-                        </>
-                      )}
                     </div>
                   ) : current.posterUrl && !current.trailerKey ? (
                     <div className="border-b border-zinc-800/80 bg-zinc-950">
@@ -3109,9 +3361,10 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                  {!isTrailerFullscreen && (
+                  {!current.trailerKey && (
                     <MovieRatingBlock
                       layout="trailerBar"
+                      trailerFullscreen={false}
                       passCurrentCardStable={passCurrentCardStable}
                       onRate={handlePendingChange}
                       movieTitle={current.title}
@@ -3126,32 +3379,12 @@ export default function Home() {
                   )}
                   <div className="flex flex-col gap-4 p-4 sm:pb-6 sm:p-6">
                     {current.trailerKey && (
-                      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                        <div className="min-w-0 w-full sm:flex-1 sm:pr-1">
-                          <TrailerMetadata
-                            movie={current}
-                            onPersonClick={enterCareerMode}
-                            careerPersonName={careerMode?.personName ?? null}
-                          />
-                        </div>
-                        <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2 sm:pt-0.5">
-                          {!isTrailerFullscreen && (
-                            <button
-                              type="button"
-                              onPointerDown={(e) => e.preventDefault()}
-                              onClick={() => videoContainerRef.current?.requestFullscreen?.()}
-                              className="shrink-0 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                              title="Enter fullscreen — Next button available in fullscreen"
-                              aria-label="Enter fullscreen"
-                            >
-                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                              </svg>
-                              Fullscreen
-                            </button>
-                          )}
-                          <ShareButton onClick={handleShare} toast={shareToast} />
-                        </div>
+                      <div className="min-w-0 w-full">
+                        <TrailerMetadata
+                          movie={current}
+                          onPersonClick={enterCareerMode}
+                          careerPersonName={careerMode?.personName ?? null}
+                        />
                       </div>
                     )}
                     {!current.trailerKey && !current.posterUrl && (

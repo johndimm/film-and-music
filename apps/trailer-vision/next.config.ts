@@ -1,11 +1,10 @@
-import path from "path"
-import { config as loadEnvFile } from "dotenv"
 import type { NextConfig } from "next"
 
-const monorepoRoot = path.join(__dirname, "../..")
-loadEnvFile({ path: path.join(monorepoRoot, ".env") })
-loadEnvFile({ path: path.join(monorepoRoot, ".env.local") })
-
+/**
+ * Env for this app: Next.js loads `apps/trailer-vision/.env*` automatically.
+ * For shared keys from the monorepo root, use CI injection (e.g. dotenvx) or symlink/copy into this app —
+ * loading `../../.env` here pulls the whole repo into Turbopack’s NFT trace during `next build`.
+ */
 const nextConfig: NextConfig = {
   transpilePackages: ["@film-music/constellations", "@film-music/taste-context", "@film-music/platform"],
   env: {

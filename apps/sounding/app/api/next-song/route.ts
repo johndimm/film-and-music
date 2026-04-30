@@ -8,6 +8,8 @@ import {
   ExploreMode,
   SongSuggestion,
 } from '@/app/lib/llm'
+import crypto from 'node:crypto'
+import { deriveUserKey } from '@/app/lib/server/llmLogs'
 import {
   logLlmCallWithModel,
   logSpotifyBatchIdOutcome,
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
     cookies(),
     req.json() as Promise<{
       sessionHistory: ListenEvent[]
+      cardHistory?: ListenEvent[]
       priorProfile?: string
       provider?: LLMProvider
       artistConstraint?: string
@@ -141,7 +144,7 @@ export async function POST(req: NextRequest) {
   // For all Spotify paths below, accessToken is guaranteed to be present.
   const spotifyToken: string = accessToken ?? ''
 
-  const { sessionHistory, priorProfile, provider, artistConstraint, notes, globalNotes, forceTextSearch, alreadyHeard, mode, profileOnly, songsToResolve, source } = body
+  const { sessionHistory, cardHistory, priorProfile, provider, artistConstraint, notes, globalNotes, forceTextSearch, alreadyHeard, mode, profileOnly, songsToResolve, source } = body
   const combinedNotes = [notes, globalNotes].filter(Boolean).join('\n\n') || undefined
 
   // ── Resolve-only path: skip LLM, just look up provided songs ────────────
@@ -215,6 +218,15 @@ export async function POST(req: NextRequest) {
   let profile: string | undefined
   let suggestedArtists: string[] = []
   try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get(ACCESS_TOKEN_COOKIE_NAME)?.value ?? null
+    const userKey = deriveUserKey({
+      cookieToken: token,
+      headerIp: req.headers.get('x-forwarded-for'),
+      headerUa: req.headers.get('user-agent'),
+      explicitUserId: null,
+    })
+    const requestId = crypto.randomBytes(8).toString('hex')
     const result = await getNextSongQuery(
       sessionHistory ?? [],
       provider,
@@ -223,7 +235,9 @@ export async function POST(req: NextRequest) {
       priorProfile,
       alreadyHeard,
       mode,
-      body.numSongs
+      body.numSongs,
+      cardHistory ?? [],
+      { userKey, requestId, meta: { profileOnly: body.profileOnly === true, source: body.source ?? null } }
     )
     songs = result.songs
     profile = result.profile

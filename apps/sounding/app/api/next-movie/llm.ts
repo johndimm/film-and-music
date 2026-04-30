@@ -1,11 +1,23 @@
+import { writeLlmLog } from '@/app/lib/server/llmLogs'
+
+export type CallLlmLogContext = {
+  app: string
+  type: string
+  userKey: string
+  requestId: string
+  meta?: Record<string, unknown>
+}
+
 export async function callLLM(
   llm: string,
   systemPrompt: string,
   userMessage: string,
-  opts?: { maxTokens?: number }
+  opts?: { maxTokens?: number },
+  log?: CallLlmLogContext
 ): Promise<string> {
   const maxTokens = opts?.maxTokens ?? 1024;
   let currentLlm = llm;
+  let lastErr: unknown = null
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -45,7 +57,22 @@ export async function callLLM(
         const d = (await res.json()) as {
           choices: { message: { content: string } }[];
         };
-        return d.choices?.[0]?.message?.content?.trim() ?? "";
+        const text = d.choices?.[0]?.message?.content?.trim() ?? ""
+        if (log) {
+          await writeLlmLog({
+            app: log.app,
+            type: log.type,
+            userKey: log.userKey,
+            requestId: log.requestId,
+            provider: currentLlm,
+            modelId: 'deepseek-chat',
+            systemPrompt,
+            userMessage,
+            responseText: text,
+            meta: { maxTokens, attempt: attempt + 1, ...log.meta },
+          })
+        }
+        return text
       }
 
       if (currentLlm === "claude") {
@@ -75,7 +102,22 @@ export async function callLLM(
           throw new Error(`Claude ${res.status}: ${JSON.stringify(e)}`);
         }
         const d = (await res.json()) as { content: { type: string; text: string }[] };
-        return d.content?.[0]?.text?.trim() ?? "";
+        const text = d.content?.[0]?.text?.trim() ?? ""
+        if (log) {
+          await writeLlmLog({
+            app: log.app,
+            type: log.type,
+            userKey: log.userKey,
+            requestId: log.requestId,
+            provider: currentLlm,
+            modelId: 'claude-opus-4-6',
+            systemPrompt,
+            userMessage,
+            responseText: text,
+            meta: { maxTokens, attempt: attempt + 1, ...log.meta },
+          })
+        }
+        return text
       }
 
       if (currentLlm === "gpt-4o") {
@@ -101,7 +143,22 @@ export async function callLLM(
         const d = (await res.json()) as {
           choices: { message: { content: string } }[];
         };
-        return d.choices?.[0]?.message?.content?.trim() ?? "";
+        const text = d.choices?.[0]?.message?.content?.trim() ?? ""
+        if (log) {
+          await writeLlmLog({
+            app: log.app,
+            type: log.type,
+            userKey: log.userKey,
+            requestId: log.requestId,
+            provider: currentLlm,
+            modelId: 'gpt-4o',
+            systemPrompt,
+            userMessage,
+            responseText: text,
+            meta: { maxTokens, attempt: attempt + 1, ...log.meta },
+          })
+        }
+        return text
       }
 
       if (currentLlm === "gemini") {
@@ -122,14 +179,45 @@ export async function callLLM(
         const d = (await res.json()) as {
           candidates: { content: { parts: { text: string }[] } }[];
         };
-        return d.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+        const text = d.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? ""
+        if (log) {
+          await writeLlmLog({
+            app: log.app,
+            type: log.type,
+            userKey: log.userKey,
+            requestId: log.requestId,
+            provider: currentLlm,
+            modelId: 'gemini-2.0-flash',
+            systemPrompt,
+            userMessage,
+            responseText: text,
+            meta: { maxTokens, attempt: attempt + 1, ...log.meta },
+          })
+        }
+        return text
       }
 
       throw new Error(`Unknown LLM: ${currentLlm}`);
     } catch (err) {
+      lastErr = err
       if (attempt === 1) throw err;
       console.warn(`[next-movie] LLM attempt ${attempt + 1} failed:`, err);
     }
+  }
+  if (log) {
+    const message = lastErr instanceof Error ? lastErr.message : 'LLM failed after all attempts'
+    const stack = lastErr instanceof Error ? lastErr.stack : undefined
+    await writeLlmLog({
+      app: log.app,
+      type: log.type,
+      userKey: log.userKey,
+      requestId: log.requestId,
+      provider: currentLlm,
+      systemPrompt,
+      userMessage,
+      error: { message, stack },
+      meta: { maxTokens, ...log.meta },
+    })
   }
   throw new Error(`LLM failed after all attempts`);
 }

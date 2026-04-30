@@ -337,6 +337,21 @@ export default function SettingsPage() {
           />
         </section>
 
+        <section className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+          <h2 className="text-sm font-semibold">LLM logs</h2>
+          <p className="text-xs text-zinc-600">
+            View recent prompts and responses recorded by the server (if logging is enabled).
+          </p>
+          <div>
+            <a
+              href="/trailer-visions/logs"
+              className="inline-flex items-center rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+            >
+              Open Log Viewer
+            </a>
+          </div>
+        </section>
+
         {/* Channels backup */}
         <section className="flex flex-col gap-3">
           <div>

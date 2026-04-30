@@ -31,6 +31,10 @@ const nextConfig: NextConfig = {
 
   outputFileTracingRoot: repoRoot,
 
+  async redirects() {
+    return [{ source: '/logs', destination: '/trailer-visions/logs', permanent: false }]
+  },
+
   webpack: (config) => {
     config.resolve = config.resolve ?? {}
     const lucideDir = resolveLucideDir()

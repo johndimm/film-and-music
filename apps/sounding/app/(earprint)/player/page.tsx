@@ -1,6 +1,5 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { getBaseUrl } from '@/app/lib/baseUrl'
 import { kvGet } from '@/app/lib/kvStore'
 import { parseShareId } from '@/app/lib/shareId'
 import { soundingsStorage, SOUNDING_SHARE_KEY_PREFIX } from '@/app/lib/platform'
@@ -65,19 +64,12 @@ export default async function PlayerPage({
     youtubeCookieMode ||
     Boolean(shareId)
 
+  /**
+   * TV users jumping to `/player` from Trailer Vision often have no Spotify cookie yet.
+   * The landing page is the right place to start Soundings (Spotify or YouTube)—avoid a dead-end gate.
+   */
   if (!allowWithoutSpotify) {
-    const base = getBaseUrl()
-    const loginUrl = base ? `${base}/api/auth/login` : '/api/auth/login'
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="text-center px-4">
-          <p className="text-xl font-semibold">No Spotify session detected.</p>
-          <p className="text-sm text-zinc-400 mt-2">
-            <a href={loginUrl} className="underline text-emerald-400">Log in with Spotify</a>
-          </p>
-        </div>
-      </div>
-    )
+    redirect('/')
   }
 
   return null

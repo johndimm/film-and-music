@@ -1,4 +1,5 @@
 import { callLLM } from "../next-movie/llm";
+import crypto from "node:crypto";
 
 export async function POST(request: Request) {
   const body = await request.json() as {
@@ -7,6 +8,7 @@ export async function POST(request: Request) {
     timePeriods?: string[];
     language?: string;
     freeText?: string;
+    sessionId?: string;
     llm?: string;
   };
 
@@ -38,7 +40,26 @@ Suggest up to 20 notable directors and/or actors whose work fits this overall th
 Return JSON: {"artists":["Name",...]}`;
 
   try {
-    const text = await callLLM(llm, systemPrompt, userMessage, { maxTokens: 400 });
+    const requestId = crypto.randomBytes(8).toString("hex");
+    const userKey = body.sessionId ? `tv-${body.sessionId}` : "tv-anon";
+    const text = await callLLM(
+      llm,
+      systemPrompt,
+      userMessage,
+      { maxTokens: 400 },
+      {
+        app: "trailer-vision",
+        type: "trailer-vision.suggest-artists",
+        userKey,
+        requestId,
+        meta: {
+          hasChannelName: Boolean(channelName.trim()),
+          genresCount: genres.length,
+          timePeriodsCount: timePeriods.length,
+          hasLanguage: Boolean(language),
+        },
+      }
+    );
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return Response.json({ artists: [] });
     const parsed = JSON.parse(match[0]) as { artists?: unknown };

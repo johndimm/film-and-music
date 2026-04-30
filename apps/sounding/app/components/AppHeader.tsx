@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import FilmMusicHomeLink from '@/app/components/FilmMusicHomeLink'
 
 const GRAPH_HREF = '/player#soundings-constellations'
 
@@ -15,9 +16,20 @@ const PAGE_LINKS = [
 
 const FILE_LINKS = [{ href: '/guide', label: 'Help' }]
 
+const POPOUT_FEATURES = 'popup=yes,width=440,height=860,scrollbars=yes,resizable=yes'
+
 export default function AppHeader() {
   const pathname = usePathname()
   const isPlayer = pathname.startsWith('/player')
+
+  const openPopOutPlayer = () => {
+    if (typeof window === 'undefined') return
+    const u = `${window.location.origin}${pathname.startsWith('/player') ? pathname : '/player'}`
+    const w = window.open(u, 'soundings-player-popout', POPOUT_FEATURES)
+    if (!w || w.closed) {
+      window.alert('Pop-up was blocked. Allow pop-ups for this site to use the detached player.')
+    }
+  }
 
   const isActive = (href: string) => {
     if (href === GRAPH_HREF) {
@@ -29,9 +41,11 @@ export default function AppHeader() {
   return (
     <header className={`border-b ${isPlayer ? 'bg-black border-zinc-900' : 'bg-white border-zinc-200'}`}>
     <div className="flex items-center gap-2 px-4 py-2 max-w-[800px] mx-auto flex-wrap">
+      <FilmMusicHomeLink variant={isPlayer ? 'playerDark' : 'surfaceLight'} />
+      <span className={isPlayer ? 'text-zinc-700 select-none' : 'text-zinc-300 select-none'} aria-hidden>/</span>
       <Link
         href="/player"
-        className={`text-base font-bold transition-colors mr-1 ${isPlayer ? 'text-white hover:text-zinc-300' : 'text-black hover:text-zinc-600'}`}
+        className={`text-base font-bold transition-colors ${isPlayer ? 'text-white hover:text-zinc-300' : 'text-black hover:text-zinc-600'}`}
       >
         Soundings
       </Link>
@@ -67,6 +81,17 @@ export default function AppHeader() {
           </Link>
         ))}
       </nav>
+
+      {isPlayer ? (
+        <button
+          type="button"
+          onClick={openPopOutPlayer}
+          title="Open the player in a separate window — you can close this tab; playback stays in that window."
+          className="text-xs font-medium shrink-0 rounded px-2 py-1 border border-zinc-700 bg-zinc-900 text-zinc-200 transition-colors hover:border-zinc-500 hover:bg-zinc-800"
+        >
+          Pop out
+        </button>
+      ) : null}
 
       <a
         href="/api/auth/logout"

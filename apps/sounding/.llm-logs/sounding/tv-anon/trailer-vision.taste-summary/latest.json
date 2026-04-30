@@ -1,0 +1,20 @@
+{
+  "app": "sounding",
+  "type": "trailer-vision.taste-summary",
+  "userKey": "tv-anon",
+  "requestId": "278309f1c3f2fd04",
+  "provider": "deepseek",
+  "modelId": "deepseek-chat",
+  "systemPrompt": "You analyze movie/TV viewer taste from rating data. Write a concise, specific taste profile addressed directly to the viewer in second person (\"You tend to...\", \"You consistently rate...\", \"You diverge from critics when...\"). Cover what they love, what they avoid, and how their taste compares to critics. Be concrete, not generic. 2–4 sentences max. Reply with ONLY the profile text, no labels or JSON.",
+  "userMessage": "\nRATED TITLES (5 total; showing highest-divergence + most recent):\n- \"Fellini Satyricon\" (movie): user 3.5/5, AI 2.5/5 RT:79% gap vs RT★: 0.5\n- \"Fitzcarraldo\" (movie): user 3.5/5, AI 3.5/5 RT:90% gap vs RT★: 1.0\n- \"On the Waterfront\" (movie): user 4.5/5, AI 4/5 RT:99% gap vs RT★: 0.5\n- \"Baby Doll\" (movie): user 4.5/5, AI 4/5 RT:87% gap vs RT★: 0.0\n- \"Cape Fear\" (movie): user 3/5, AI 3/5 RT:96% gap vs RT★: 2.0\n\nSaved to watchlist despite LOW RT (likes what critics don't): none\nDismissed despite HIGH RT (dislikes what critics love): \"Pigsty\" (RT:75%), \"Fellini Satyricon\" (RT:79%), \"The Merchant of Four Seasons\" (RT:100%), \"American Friend\" (RT:90%), \"Nosferatu the Vampyre\" (RT:96%), \"The Manchurian Candidate\" (RT:98%), \"The Asphalt Jungle\" (RT:97%), \"Murder My Sweet\" (RT:86%), \"The Harder They Fall\" (RT:80%), \"The Haunting\" (RT:87%), \"Murder by Contract\" (RT:100%), \"The Prowler\" (RT:91%), \"The Last Wagon\" (RT:100%), \"Seconds\" (RT:89%), \"In Cold Blood\" (RT:94%), \"The Night of the Demon\" (RT:97%), \"Out of the Past\" (RT:93%), \"The Wages of Fear\" (RT:97%), \"Night of the Demon\" (RT:95%)",
+  "responseText": "You gravitate toward morally complex, formally ambitious classics like *Fitzcarraldo* and *On the Waterfront*, often rating them higher than critics. You consistently dismiss revered genre films—noir, horror, Westerns, thrillers with high RT scores—suggesting you avoid formula or genre conventions even when critics praise them. Your 3/5 rating for the well-liked *Cape Fear* and dismissal of *The Wages of Fear* shows you are unswayed by consensus, instead seeking out more idiosyncratic, director-driven works.",
+  "meta": {
+    "maxTokens": 256,
+    "attempt": 1,
+    "ratingsTotal": 5,
+    "watchlistSignals": 0,
+    "notInterestedSignals": 22,
+    "hasExistingSummary": false
+  },
+  "ts": "2026-04-30T01:24:31.885Z"
+}

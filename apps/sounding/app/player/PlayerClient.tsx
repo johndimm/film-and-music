@@ -3364,6 +3364,7 @@ export default function PlayerClient({
       const alreadyHeardDeduped = [...new Set(alreadyHeard.map(s => s.trim()).filter(Boolean))]
       const payload: Record<string, unknown> = {
         sessionHistory: sessionHist,
+        cardHistory: djCardHistory,
         priorProfile: profile || undefined,
         provider: providerRef.current,
         artistConstraint,
@@ -3647,6 +3648,7 @@ export default function PlayerClient({
     const { sessionHistory: djSessionHistory, cardHistory: djCardHistory } = getDjContextHistories()
     const payload: Record<string, unknown> = {
       sessionHistory: djSessionHistory,
+        cardHistory: djCardHistory,
       priorProfile: priorProfileRef.current || undefined,
       provider: providerRef.current,
       notes: buildCombinedNotes(

@@ -58,6 +58,8 @@ export const trailerVisionStorage = {
   prefetchQueuePrefix: 'movie-recs-prefetch-queue',
   /** Queued on /constellations: create this channel when home loads (JSON `{ v:1, name?, notes }`). */
   pendingConstellationsNewChannel: 'movie-recs-pending-constellations-new-channel',
+  /** {@link canonicalTitleKey} → times the LLM suggested a title we already had queued or decided on. */
+  llmDiscardFatigueCounts: 'movie-recs-llm-discard-fatigue-counts-v1',
 } as const
 
 export const trailerVisionChannelIds = {
@@ -79,4 +81,5 @@ export const TRAILER_VISION_RESET_DATA_KEYS: readonly string[] = [
   trailerVisionStorage.tasteSummary,
   trailerVisionStorage.llmSessionId,
   trailerVisionStorage.llmHistorySynced,
+  trailerVisionStorage.llmDiscardFatigueCounts,
 ] as const

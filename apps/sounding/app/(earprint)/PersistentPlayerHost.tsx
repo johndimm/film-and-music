@@ -1,11 +1,26 @@
 'use client'
 
-import { Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { soundingsStorage } from '@/app/lib/platform'
 import PlayerClientWrapper from '@/app/player/PlayerClientWrapper'
 import { applyFreshLoginIfNeeded } from '@/app/lib/freshLogin'
 import { parseShareId } from '@/app/lib/shareId'
+
+/**
+ * Same values as `useSearchParams()` but without triggering Suspense.
+ * The root layout used to wrap the whole host in `<Suspense fallback={children}>` for
+ * `useSearchParams`; when that suspended on navigation, the player unmounted and Spotify stopped.
+ */
+function useWindowSearchParams(pathname: string): URLSearchParams {
+  const [sp, setSp] = useState(() => new URLSearchParams())
+
+  useLayoutEffect(() => {
+    setSp(new URLSearchParams(typeof window !== 'undefined' ? window.location.search : ''))
+  }, [pathname])
+
+  return sp
+}
 
 function readPendingShareGate(): boolean {
   if (typeof window === 'undefined') return false
@@ -35,7 +50,7 @@ function PersistentPlayerHostInner({
   youtubeModeFromCookie: boolean
 }) {
   const pathname = usePathname()
-  const sp = useSearchParams()
+  const sp = useWindowSearchParams(pathname)
   const router = useRouter()
 
   /**
@@ -125,8 +140,14 @@ function PersistentPlayerHostInner({
     pendingShareGate
   const isPlayerRoute = pathname.startsWith('/player')
   const isMovieRoute = pathname.startsWith('/trailer-visions')
+  /**
+   * Film & Music splash — never mount off-screen playback here.
+   * Normalize so `/`, ``, and trailing-slash-only variants all count as landing (`next.config` trailingSlash edge cases).
+   */
+  const pathNorm = pathname.replace(/\/+$/, '')
+  const isFilmMusicLanding = pathNorm === '' || pathNorm === '/'
 
-  if (!canPlay || isMovieRoute) {
+  if (!canPlay || isMovieRoute || isFilmMusicLanding) {
     return <>{children}</>
   }
 
@@ -165,14 +186,12 @@ export default function PersistentPlayerHost({
   youtubeModeFromCookie?: boolean
 }) {
   return (
-    <Suspense fallback={<>{children}</>}>
-      <PersistentPlayerHostInner
-        accessToken={accessToken}
-        youtubeResolveTestFromServer={youtubeResolveTestFromServer}
-        youtubeModeFromCookie={youtubeModeFromCookie}
-      >
-        {children}
-      </PersistentPlayerHostInner>
-    </Suspense>
+    <PersistentPlayerHostInner
+      accessToken={accessToken}
+      youtubeResolveTestFromServer={youtubeResolveTestFromServer}
+      youtubeModeFromCookie={youtubeModeFromCookie}
+    >
+      {children}
+    </PersistentPlayerHostInner>
   )
 }

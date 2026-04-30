@@ -351,6 +351,19 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
+  /** Pause on tab close / navigate away so a surviving helper process does not keep trailer-like audio. */
+  useEffect(() => {
+    const suspend = () => {
+      invoke(ytPlayerRef.current, iframeRef.current, 'pauseVideo')
+    }
+    window.addEventListener('pagehide', suspend)
+    window.addEventListener('beforeunload', suspend)
+    return () => {
+      window.removeEventListener('pagehide', suspend)
+      window.removeEventListener('beforeunload', suspend)
+    }
+  }, [])
+
   useImperativeHandle(ref, () => ({
     fadeOut: async () => {},
     getCurrentTime: () => {
