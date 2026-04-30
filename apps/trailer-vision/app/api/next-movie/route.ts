@@ -20,6 +20,8 @@ export interface NextMovieResponse {
   trailerKey: string | null;
   rtScore: string | null;
   reason: string | null;
+  /** US streaming service names from the same LLM call (movies and TV series). */
+  streaming: string[];
 }
 
 /** After Serper returns quota / credits error, skip further image calls (process lifetime). */
@@ -55,6 +57,21 @@ interface RawItem {
   plot?: string;
   rt_score?: string | null;
   reason?: string | null;
+  streaming_services?: unknown;
+}
+
+function normalizeStreamingServicesFromRaw(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const x of raw) {
+    if (typeof x !== "string") continue;
+    const s = x.trim();
+    if (!s || seen.has(s.toLowerCase())) continue;
+    seen.add(s.toLowerCase());
+    out.push(s);
+  }
+  return out;
 }
 
 import { callLLM } from "./llm";
@@ -81,8 +98,8 @@ const MAX_LOW_RT_WANT_LINES = 28;
 const MAX_HIGH_RT_SKIP_LINES = 28;
 const LOW_RT_THRESHOLD = 60; // want-to-watch: RT below this is a strong signal
 const HIGH_RT_THRESHOLD = 70; // not interested: RT at/above this is a strong signal
-/** Scales with batch size (8 titles × short JSON + reasons). */
-const LLM_OUTPUT_MAX_TOKENS = 2200;
+/** Slightly elevated for streaming_services arrays per title. */
+const LLM_OUTPUT_MAX_TOKENS = 4600;
 
 function getYoutubeDataApiKey(): string | undefined {
   return process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_DATA_API_KEY;
@@ -537,9 +554,10 @@ Many cards have no Rotten Tomatoes score — that is normal.
 Your job each turn:
 1. Propose ${batchCount} titles (aim for variety). The client removes duplicates against a large exclusion set you do not receive in full — repeats are OK; the app will filter.
 2. For each title, predict the rating they would give on a **0.5–5 star scale (half-star steps only)**.
-3. Return title, year, director, top 3-4 actors, a 1-2 sentence plot summary, Rotten Tomatoes Tomatometer when known, and a one-sentence reason explaining why this title fits the user's taste — write it in second person, addressing the user as "you" (e.g. "You rated X highly" not "The user rated X highly").
-4. Respond with ONLY valid JSON — no markdown, no explanation:
-{"items":[{"title":"...","type":"movie","year":1994,"director":"...","predicted_rating":3.5,"actors":["...","..."],"plot":"...","rt_score":"94%","reason":"..."}]}
+3. Return title, year, director, top 3-4 actors, a 1-2 sentence plot summary, Rotten Tomatoes Tomatometer when known, a one-sentence reason explaining why this title fits the user's taste — write it in second person, addressing the user as "you" (e.g. "You rated X highly" not "The user rated X highly").
+4. For **each title** include **streaming_services**: a JSON array of US streaming **platform names** where the viewer can legally watch **right now or via common subscription tiers** — for **movies** the film itself; for **TV** the **series overall** (not individual episodes). Use short names consistent with Netflix, Max, Hulu, Disney+, Apple TV+, Amazon Prime Video, Peacock, Paramount+, AMC+, STARZ, PBS, Tubi, Pluto TV — use [] only if unsure.
+5. Respond with ONLY valid JSON — no markdown, no explanation:
+{"items":[{"title":"...","type":"movie","year":1994,"director":"...","predicted_rating":3.5,"actors":["...","..."],"plot":"...","rt_score":"94%","reason":"...","streaming_services":["Netflix","Max"]}]}
 
 Rules:
 - Return exactly ${batchCount} objects in "items" (unless absolutely impossible — then return as many distinct valid picks as you can)
@@ -548,6 +566,7 @@ Rules:
 - "year" is a number; "director" is the creator/showrunner for TV
 - "predicted_rating" is a number from 0.5 to 5 in steps of 0.5 (half stars) — never use 0–100
 - "rt_score" is the Tomatometer percentage (e.g. "94%") or null if unknown
+- "streaming_services" is always an array of strings (possibly empty [] if unsure) — movies and TV series both get series-level/streaming-platform answers for TV
 - All string values must be on a single line — no newline characters inside strings
 - Vary genres, eras, and (if media allows) movie vs TV to calibrate faster
 - Predict honestly — vary predictions; the midpoint is not always 3
@@ -671,6 +690,7 @@ ${history.length === 0 && allExcluded.length === 0
       trailerKey: null,
       rtScore: raw.rt_score ?? null,
       reason: raw.reason?.trim() || null,
+      streaming: normalizeStreamingServicesFromRaw(raw.streaming_services),
     });
   }
 

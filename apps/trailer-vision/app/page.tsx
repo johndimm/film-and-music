@@ -33,6 +33,7 @@ import {
 import { graphNodeToChannelSeeds } from "@film-music/constellations/graphNodeToChannelNotes";
 import type { GraphNode } from "@film-music/constellations/types";
 import { canonicalTitleKey } from "./lib/canonicalTitleKey";
+import { pickHistoryEntryForCardTitle } from "./lib/historyLookup";
 import {
   mergeLlmDiscardFatigueIntoExcluded,
   recordDuplicateLlmSuggestionDiscard,
@@ -230,6 +231,7 @@ interface CurrentMovie {
   trailerKey: string | null;
   rtScore: string | null;
   reason: string | null;
+  streaming?: string[];
 }
 
 export interface WatchlistEntry {
@@ -671,6 +673,73 @@ const HomeHero = memo(function HomeHero() {
   );
 });
 
+/** LLM / prefetch status — shown next to the upcoming queue inside the card (not the page header). */
+const LlmPrefetchStatusBar = memo(function LlmPrefetchStatusBar({
+  careerMode,
+  llmActive,
+  llmPrefetchInFlight,
+  isAdvancingCard,
+  queueLength,
+}: {
+  careerMode: boolean;
+  llmActive: boolean;
+  llmPrefetchInFlight: number;
+  isAdvancingCard: boolean;
+  queueLength: number;
+}) {
+  return (
+    <div
+      className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-xs font-medium shadow-sm backdrop-blur-sm sm:text-sm sm:gap-3 ${
+        careerMode
+          ? "border-amber-600/35 bg-amber-950/80 text-amber-100"
+          : llmActive
+            ? "border-indigo-500/55 bg-indigo-950/90 text-indigo-100 shadow-indigo-950/40"
+            : "border-zinc-700/90 bg-zinc-900/90 text-zinc-400"
+      }`}
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+          careerMode ? "bg-amber-400" : llmActive ? "animate-pulse bg-amber-400 shadow-[0_0_12px_theme(colors.amber.400)]" : "bg-zinc-600"
+        }`}
+        aria-hidden
+      />
+      <span className="min-w-0 flex-1 leading-snug">
+        {careerMode ? (
+          <>Career mode — browsing filmography (LLM suggestions off)</>
+        ) : llmActive ? (
+          <>
+            <span className="font-semibold text-zinc-50">LLM working</span>
+            <span className="text-indigo-200/90">
+              {" "}
+              —{" "}
+              {[
+                llmPrefetchInFlight > 0 &&
+                  `${llmPrefetchInFlight} prefetch request${llmPrefetchInFlight === 1 ? "" : "s"}`,
+                isAdvancingCard && "opening next card",
+              ]
+                .filter(Boolean)
+                .join(" · ") || "…"}
+              {" · "}queue&nbsp;<span className="tabular-nums">{queueLength}</span>
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-semibold text-zinc-300">LLM idle</span>
+            <span className="text-zinc-500">
+              {" "}
+              — queue&nbsp;<span className="tabular-nums">{queueLength}</span> title
+              {queueLength === 1 ? "" : "s"}
+              {queueLength < HIGH_WATER_MARK ? " · refilling in background when needed" : ""}
+            </span>
+          </>
+        )}
+      </span>
+    </div>
+  );
+});
+
 const PrefetchQueuePanel = memo(function PrefetchQueuePanel({
   prefetchQueueUi,
   channels,
@@ -1079,6 +1148,25 @@ function PersonLink({
   );
 }
 
+function StreamingGuessPills({ services }: { services?: string[] | null }) {
+  if (!services?.length) return null;
+  return (
+    <div className="mt-2 min-w-0">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">US streaming (model estimate)</p>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {services.map((s) => (
+          <span
+            key={s}
+            className="rounded-full border border-indigo-500/35 bg-indigo-950/50 px-2 py-0.5 text-xs font-medium text-indigo-200"
+          >
+            {s}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Trailer layout: title block only — isolated from rating state. */
 const TrailerMetadata = memo(function TrailerMetadata({
   movie,
@@ -1143,6 +1231,7 @@ const TrailerMetadata = memo(function TrailerMetadata({
       {movie.plot && (
         <p className="mt-2 text-sm text-zinc-300 leading-relaxed w-full min-w-0 break-words">{movie.plot}</p>
       )}
+      <StreamingGuessPills services={movie.streaming} />
     </div>
   );
 });
@@ -1252,6 +1341,7 @@ const PosterMovieTop = memo(function PosterMovieTop({
         {movie.plot && (
           <p className="mt-2 text-sm text-zinc-300 leading-relaxed line-clamp-3 sm:line-clamp-none">{movie.plot}</p>
         )}
+        <StreamingGuessPills services={movie.streaming} />
       </div>
     </div>
   );
@@ -1678,6 +1768,8 @@ function getDocumentFullscreenElement(): Element | null {
 export default function Home() {
   /** Persisted lists — refs only on this page (nothing in the tree reads them for render). Updates skip full-tree re-renders. */
   const historyRef = useRef<RatingEntry[]>([]);
+  /** Bumped when saveHistory runs so lookups re-run (refs alone do not re-render). */
+  const [historyVersion, setHistoryVersion] = useState(0);
   const skippedRef = useRef<string[]>([]);
   const passedRef = useRef<PassedRow[]>([]);
   const watchlistRef = useRef<WatchlistEntry[]>([]);
@@ -1737,11 +1829,13 @@ export default function Home() {
   const [userRequest, setUserRequest] = useState<string>(() => loadSetting("userRequest", ""));
   const userRequestRef = useRef("");
   userRequestRef.current = userRequest;
-  /** Set after first userRequest effect — used so we only flush prefetch on real edits, not mount/import. */
-  const prevUserRequestForFlushRef = useRef<string | undefined>(undefined);
+  /** Same-channel prompt edits flush prefetch after debounce; channel switches reset baseline here (reload handled elsewhere). */
+  const prevPromptFlushBaselineRef = useRef<{ channelId: string; prompt: string } | undefined>(undefined);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [factoryPackFullyMerged, setFactoryPackFullyMerged] = useState<boolean | null>(null);
   const [channelPendingDelete, setChannelPendingDelete] = useState<Channel | null>(null);
+  /** Top bar text is only for creating a new channel; it does not reflect the active channel. */
+  const [newChannelDraft, setNewChannelDraft] = useState("");
 
   useEffect(() => {
     setFactoryPackFullyMerged(isFactoryStarterPackFullyMerged());
@@ -1752,38 +1846,12 @@ export default function Home() {
   activeChannelIdRef.current = activeChannelId;
   channelsRef.current = channels;
 
-  /** Same as “What you want” in the channel editor: All → settings `userRequest`; else → this channel’s `freeText`. */
+  /** Stored “What you want” (All → settings userRequest; else channel freeText) — used to flush prefetch when it changes elsewhere; not tied to the home new-channel field. */
   const channelPromptValue = useMemo(() => {
     if (activeChannelId === "all") return userRequest;
     const ch = channels.find((c) => c.id === activeChannelId);
     return ch?.freeText ?? "";
   }, [activeChannelId, userRequest, channels]);
-
-  const updateChannelPrompt = useCallback((value: string) => {
-    if (activeChannelId === "all") {
-      setUserRequest(value);
-      try {
-        const s = localStorage.getItem(SETTINGS_KEY);
-        const base = s ? (JSON.parse(s) as Record<string, unknown>) : {};
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...base, userRequest: value }));
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
-    if (!activeChannelId) return;
-    setChannels((prev) => {
-      const next = prev.map((c) =>
-        c.id === activeChannelId ? { ...c, freeText: value } : c
-      );
-      try {
-        localStorage.setItem(CHANNELS_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, [activeChannelId]);
 
   const replenishOptsRef = useRef<{ mediaType: string; llm: string }>({ mediaType: "both", llm: "deepseek" });
   const zeroYieldStreakRef = useRef(0); // consecutive batches with 0 fresh items — stop daisy-chaining when high
@@ -2067,6 +2135,7 @@ export default function Home() {
   const saveHistory = (h: RatingEntry[]) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(h));
     historyRef.current = h;
+    setHistoryVersion((v) => v + 1);
   };
 
   /** Fire-and-forget: ask the LLM to summarize taste. Called after ratings hit 1, 5, 10, 15 ... */
@@ -2418,6 +2487,7 @@ export default function Home() {
     const storedNotSeen = localStorage.getItem(NOTSEEN_KEY);
     notSeenRef.current = storedNotSeen ? (JSON.parse(storedNotSeen) as NotSeenEvent[]) : [];
     historyRef.current = hist;
+    setHistoryVersion((v) => v + 1);
     skippedRef.current = skip;
     const storedPassed = localStorage.getItem(PASSED_KEY);
     try {
@@ -2574,6 +2644,7 @@ export default function Home() {
             trailerKey: m.trailerKey ?? null,
             rtScore: m.rtScore ?? null,
             reason: null,
+            streaming: Array.isArray(m.streaming) ? (m.streaming as string[]).filter((s): s is string => typeof s === "string" && !!s.trim()) : undefined,
           };
           setCurrent(movie);
           setInitialLoading(false);
@@ -2637,17 +2708,22 @@ export default function Home() {
     void fetchNext({ mediaType, llm }, prefetchRef.current.length > 0);
   }, [mediaType, current?.type, current?.title, llm, fetchNext, persistPrefetchQueue]);
 
-  // When userRequest changes (debounced 600ms), flush the prefetch queue so
-  // upcoming cards reflect the new request rather than stale pre-fetched batches.
-  // Do not run on initial mount — that would clear an imported queue ~600ms after load.
+  // When the top prompt changes on the active channel (debounced 600ms), flush prefetch and
+  // replenish so queued titles match the new text — without swapping the visible card (no fetchNext).
+  // First paint and channel switches only reset baseline; switches load their queue in another effect.
   useEffect(() => {
-    const prev = prevUserRequestForFlushRef.current;
-    if (prev === undefined) {
-      prevUserRequestForFlushRef.current = userRequest;
+    if (!activeChannelId) return;
+    const baseline = prevPromptFlushBaselineRef.current;
+    if (baseline === undefined) {
+      prevPromptFlushBaselineRef.current = { channelId: activeChannelId, prompt: channelPromptValue };
       return;
     }
-    if (prev === userRequest) return;
-    prevUserRequestForFlushRef.current = userRequest;
+    if (baseline.channelId !== activeChannelId) {
+      prevPromptFlushBaselineRef.current = { channelId: activeChannelId, prompt: channelPromptValue };
+      return;
+    }
+    if (baseline.prompt === channelPromptValue) return;
+    prevPromptFlushBaselineRef.current = { channelId: activeChannelId, prompt: channelPromptValue };
     const t = setTimeout(() => {
       replenishGenRef.current += 1;
       replenishGenInFlight.current = 0;
@@ -2655,9 +2731,10 @@ export default function Home() {
       persistPrefetchQueue();
       batchYieldRef.current = [];
       zeroYieldStreakRef.current = 0;
+      if (!careerModeRef.current) void replenish({ mediaType, llm });
     }, 600);
     return () => clearTimeout(t);
-  }, [userRequest, persistPrefetchQueue]);
+  }, [activeChannelId, channelPromptValue, mediaType, llm, persistPrefetchQueue, replenish]);
 
   // When active channel changes: save the previous channel's queue, load the new channel's queue.
   useEffect(() => {
@@ -2864,7 +2941,7 @@ export default function Home() {
 
     let newWatchlist = watchlistRef.current;
     if (kind === "want") {
-      // Save immediately with empty streaming so the card advances without waiting
+      const streamingFromBatch = snapshot.streaming?.filter((s) => typeof s === "string" && s.trim()) ?? [];
       const entry: WatchlistEntry = {
         title: snapshot.title,
         type: snapshot.type,
@@ -2874,27 +2951,29 @@ export default function Home() {
         plot: snapshot.plot,
         posterUrl: snapshot.posterUrl,
         rtScore: snapshot.rtScore,
-        streaming: [],
+        streaming: streamingFromBatch,
         addedAt: new Date().toISOString(),
       };
       newWatchlist = [entry, ...watchlistRef.current.filter((w) => w.title !== snapshot.title)];
       localStorage.setItem(WATCHLIST_KEY, JSON.stringify(newWatchlist));
       watchlistRef.current = newWatchlist;
 
-      // Patch streaming in the background
-      fetch("/api/streaming", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: snapshot.title, year: snapshot.year, llm }),
-      }).then(r => r.ok ? r.json() : { services: [] })
-        .then(({ services }: { services: string[] }) => {
-          if (!services.length) return;
-          const updated = watchlistRef.current.map((w) =>
-            w.title === snapshot.title ? { ...w, streaming: services } : w);
-          watchlistRef.current = updated;
-          localStorage.setItem(WATCHLIST_KEY, JSON.stringify(updated));
+      if (streamingFromBatch.length === 0) {
+        fetch("/api/streaming", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: snapshot.title, year: snapshot.year, llm }),
         })
-        .catch(() => {});
+          .then((r) => (r.ok ? r.json() : { services: [] }))
+          .then(({ services }: { services: string[] }) => {
+            if (!services.length) return;
+            const updated = watchlistRef.current.map((w) =>
+              w.title === snapshot.title ? { ...w, streaming: services } : w);
+            watchlistRef.current = updated;
+            localStorage.setItem(WATCHLIST_KEY, JSON.stringify(updated));
+          })
+          .catch(() => {});
+      }
     }
 
     const nsEvent: NotSeenEvent = { afterRating: historyRef.current.length, kind };
@@ -2970,8 +3049,24 @@ export default function Home() {
         return { ...prev!, posterUrl };
       }
       return {
-        ...(prev ?? { title: film.title, type: film.type, year: film.year, director: null, predictedRating: 3, actors: [], plot: "", rtScore: null, reason: null, trailerKey: null }),
-        title: film.title, type: film.type, year: film.year, posterUrl: film.posterUrl, trailerKey: null,
+        ...(prev ?? {
+          title: film.title,
+          type: film.type,
+          year: film.year,
+          director: null,
+          predictedRating: 3,
+          actors: [],
+          plot: "",
+          rtScore: null,
+          reason: null,
+          trailerKey: null,
+          streaming: undefined,
+        }),
+        title: film.title,
+        type: film.type,
+        year: film.year,
+        posterUrl: film.posterUrl,
+        trailerKey: null,
       };
     });
     setCareerLoading((s) => (s ? s : true));
@@ -3083,45 +3178,8 @@ export default function Home() {
     setChannelPendingDelete(ch);
   }, []);
 
-  const getChannelPromptForSave = useCallback(() => {
-    const id = activeChannelIdRef.current;
-    if (id === "all") return userRequestRef.current.trim();
-    const ch = channelsRef.current.find((c) => c.id === id);
-    return (ch?.freeText ?? "").trim();
-  }, []);
-
-  /** Flush prefetch and reload so the next titles match the current prompt (also re-saves All → settings). */
-  const updateThisChannel = useCallback(() => {
-    if (!activeChannelIdRef.current) return;
-    if (activeChannelIdRef.current === "all") {
-      try {
-        const s = localStorage.getItem(SETTINGS_KEY);
-        const base = s ? (JSON.parse(s) as Record<string, unknown>) : {};
-        localStorage.setItem(
-          SETTINGS_KEY,
-          JSON.stringify({ ...base, userRequest: userRequestRef.current }),
-        );
-      } catch {
-        /* ignore */
-      }
-    } else {
-      try {
-        localStorage.setItem(CHANNELS_KEY, JSON.stringify(channelsRef.current));
-      } catch {
-        /* ignore */
-      }
-    }
-    replenishGenRef.current += 1;
-    replenishGenInFlight.current = 0;
-    prefetchRef.current = [];
-    persistPrefetchQueue();
-    batchYieldRef.current = [];
-    zeroYieldStreakRef.current = 0;
-    void fetchNext({ mediaType, llm }, true);
-  }, [mediaType, llm, fetchNext, persistPrefetchQueue]);
-
   const createChannelFromHomePrompt = useCallback(() => {
-    const t = getChannelPromptForSave();
+    const t = newChannelDraft.replace(/\s+/g, " ").trim();
     if (!t) return;
     let list: Channel[] = [];
     try {
@@ -3155,8 +3213,9 @@ export default function Home() {
     batchYieldRef.current = [];
     zeroYieldStreakRef.current = 0;
     void fetchNext({ mediaType, llm }, true);
+    setNewChannelDraft("");
   }, [
-    getChannelPromptForSave,
+    newChannelDraft,
     loadPrefetchIntoRefForChannel,
     persistPrefetchQueue,
     fetchNext,
@@ -3274,61 +3333,16 @@ export default function Home() {
     return { term: t, id: `trailer:${ch}:${canonicalTitleKey(t)}` };
   }, [activeChannelId, current]);
 
+  const historyMatchForCurrentCard = useMemo(() => {
+    if (!current?.title) return undefined;
+    return pickHistoryEntryForCardTitle(historyRef.current, current.title, activeChannelId);
+  }, [current?.title, activeChannelId, historyVersion]);
+
   const llmActive = llmPrefetchInFlight > 0 || isAdvancingCard;
 
   return (
     <div className="flex min-h-screen w-full flex-col items-center bg-black px-4 py-6 sm:py-10">
       <div className="w-full max-w-3xl space-y-4 sm:space-y-6">
-        <div
-          className={`sticky top-11 z-30 flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-xs font-medium shadow-sm backdrop-blur-sm sm:text-sm sm:gap-3 ${
-            careerMode
-              ? "border-amber-600/35 bg-amber-950/80 text-amber-100"
-              : llmActive
-                ? "border-indigo-500/55 bg-indigo-950/90 text-indigo-100 shadow-indigo-950/40"
-                : "border-zinc-700/90 bg-zinc-900/90 text-zinc-400"
-          }`}
-          role="status"
-          aria-live="polite"
-        >
-          <span
-            className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-              careerMode ? "bg-amber-400" : llmActive ? "animate-pulse bg-amber-400 shadow-[0_0_12px_theme(colors.amber.400)]" : "bg-zinc-600"
-            }`}
-            aria-hidden
-          />
-          <span className="min-w-0 flex-1 leading-snug">
-            {careerMode ? (
-              <>Career mode — browsing filmography (LLM suggestions off)</>
-            ) : llmActive ? (
-              <>
-                <span className="font-semibold text-zinc-50">LLM working</span>
-                <span className="text-indigo-200/90">
-                  {" "}
-                  —{" "}
-                  {[
-                    llmPrefetchInFlight > 0 &&
-                      `${llmPrefetchInFlight} prefetch request${llmPrefetchInFlight === 1 ? "" : "s"}`,
-                    isAdvancingCard && "opening next card",
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "…"}
-                  {" · "}queue&nbsp;<span className="tabular-nums">{prefetchQueueUi.length}</span>
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="font-semibold text-zinc-300">LLM idle</span>
-                <span className="text-zinc-500">
-                  {" "}
-                  — queue&nbsp;<span className="tabular-nums">{prefetchQueueUi.length}</span> title
-                  {prefetchQueueUi.length === 1 ? "" : "s"}
-                  {prefetchQueueUi.length < HIGH_WATER_MARK ? " · refilling in background when needed" : ""}
-                </span>
-              </>
-            )}
-          </span>
-        </div>
-
         <ChannelsToolbar
           channels={channels}
           activeChannelId={activeChannelId}
@@ -3342,23 +3356,23 @@ export default function Home() {
         <div className="rounded-2xl border border-zinc-800/90 bg-zinc-950/80 p-2 sm:p-2.5">
           <div className="flex flex-row items-center gap-1.5 sm:gap-2">
             <label htmlFor="channel-what-you-want" className="sr-only">
-              Channel prompt — same as What you want in the channel editor
+              Describe a new channel — does not edit the current channel
             </label>
             <div className="relative min-w-0 flex-1">
               <input
                 id="channel-what-you-want"
                 type="text"
                 autoComplete="off"
-                value={channelPromptValue}
-                onChange={(e) => updateChannelPrompt(e.target.value.replace(/\r?\n/g, " "))}
-                placeholder="What you want to watch…"
+                value={newChannelDraft}
+                onChange={(e) => setNewChannelDraft(e.target.value.replace(/\r?\n/g, " "))}
+                placeholder="Describe a new channel…"
                 className="h-9 w-full rounded-lg border border-zinc-600 bg-zinc-900 py-0 pl-2.5 pr-8 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 sm:h-10 sm:pl-3 sm:pr-9"
               />
-              {channelPromptValue.length > 0 && (
+              {newChannelDraft.length > 0 && (
                 <button
                   type="button"
                   onPointerDown={(e) => e.preventDefault()}
-                  onClick={() => updateChannelPrompt("")}
+                  onClick={() => setNewChannelDraft("")}
                   className="absolute right-1 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-base leading-none text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200 sm:right-1.5 sm:h-7 sm:w-7"
                   title="Clear"
                   aria-label="Clear"
@@ -3369,18 +3383,9 @@ export default function Home() {
             </div>
             <button
               type="button"
-              onClick={updateThisChannel}
-              disabled={!activeChannelId}
-              title="Refresh picks for this channel with this prompt"
-              className="h-9 shrink-0 rounded-lg border border-zinc-600 bg-zinc-800/90 px-2 text-xs font-semibold text-zinc-100 transition-colors hover:bg-zinc-700 disabled:pointer-events-none disabled:opacity-40 sm:h-10 sm:px-3 sm:text-sm"
-            >
-              Update
-            </button>
-            <button
-              type="button"
               onClick={createChannelFromHomePrompt}
-              disabled={!channelPromptValue.trim()}
-              title="New channel with this text"
+              disabled={!newChannelDraft.trim()}
+              title="Create a new channel with this text"
               className="h-9 shrink-0 rounded-lg bg-indigo-600 px-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 disabled:pointer-events-none disabled:opacity-40 sm:h-10 sm:px-3 sm:text-sm"
             >
               New channel
@@ -3394,7 +3399,18 @@ export default function Home() {
           className="bg-zinc-950 rounded-2xl border border-zinc-800 shadow-sm overflow-hidden scroll-mt-4 sm:scroll-mt-8 md:scroll-mt-14"
         >
           {initialLoading ? (
-            <MovieCardSkeleton mode={displayMode} />
+            <>
+              <div className="border-b border-zinc-800 px-4 pb-3 pt-4 sm:px-6 sm:pt-5">
+                <LlmPrefetchStatusBar
+                  careerMode={!!careerMode}
+                  llmActive={llmActive}
+                  llmPrefetchInFlight={llmPrefetchInFlight}
+                  isAdvancingCard={isAdvancingCard}
+                  queueLength={prefetchQueueUi.length}
+                />
+              </div>
+              <MovieCardSkeleton mode={displayMode} />
+            </>
           ) : current ? (
             <div>
               {careerMode && (
@@ -3500,8 +3516,8 @@ export default function Home() {
                         starKeyPrefix="tr"
                         watchFrac={watchFrac}
                         defaultSeen={activeChannelId === "all"}
-                        previousRating={historyRef.current.find((e) => e.title === current.title)?.userRating}
-                        previousMode={historyRef.current.find((e) => e.title === current.title)?.ratingMode}
+                        previousRating={historyMatchForCurrentCard?.userRating}
+                        previousMode={historyMatchForCurrentCard?.ratingMode}
                         careerPrevNav={careerPrevNav}
                         careerNextDisabled={careerAtLastFilm}
                       />
@@ -3562,8 +3578,8 @@ export default function Home() {
                       starKeyPrefix="tr"
                       watchFrac={watchFrac}
                       defaultSeen={activeChannelId === "all"}
-                      previousRating={historyRef.current.find((e) => e.title === current.title)?.userRating}
-                      previousMode={historyRef.current.find((e) => e.title === current.title)?.ratingMode}
+                      previousRating={historyMatchForCurrentCard?.userRating}
+                      previousMode={historyMatchForCurrentCard?.ratingMode}
                       careerPrevNav={careerPrevNav}
                       careerNextDisabled={careerAtLastFilm}
                     />
@@ -3588,6 +3604,14 @@ export default function Home() {
                         <LlmBulletedText text={current.reason} className="text-sm text-zinc-400 leading-relaxed" />
                       </div>
                     )}
+
+                    <LlmPrefetchStatusBar
+                      careerMode={!!careerMode}
+                      llmActive={llmActive}
+                      llmPrefetchInFlight={llmPrefetchInFlight}
+                      isAdvancingCard={isAdvancingCard}
+                      queueLength={prefetchQueueUi.length}
+                    />
 
                     {careerMode ? (
                       <CareerFilmographyPanel
@@ -3656,10 +3680,17 @@ export default function Home() {
                     movieTitle={current.title}
                     starKeyPrefix="po"
                     defaultSeen={activeChannelId === "all"}
-                    previousRating={historyRef.current.find(e => e.title === current.title)?.userRating}
-                    previousMode={historyRef.current.find(e => e.title === current.title)?.ratingMode}
+                    previousRating={historyMatchForCurrentCard?.userRating}
+                    previousMode={historyMatchForCurrentCard?.ratingMode}
                     careerPrevNav={careerPrevNav}
                     careerNextDisabled={careerAtLastFilm}
+                  />
+                  <LlmPrefetchStatusBar
+                    careerMode={!!careerMode}
+                    llmActive={llmActive}
+                    llmPrefetchInFlight={llmPrefetchInFlight}
+                    isAdvancingCard={isAdvancingCard}
+                    queueLength={prefetchQueueUi.length}
                   />
                   {careerMode ? (
                     <CareerFilmographyPanel

@@ -4972,6 +4972,14 @@ export default function PlayerClient({
             <textarea
               value={channelSearchText}
               onChange={e => setChannelSearchText(e.target.value)}
+              onBlur={e => {
+                const v = e.currentTarget.value
+                const id = activeChannelIdRef.current
+                const ch = channelsRef.current.find(c => c.id === id)
+                if (!id || !ch) return
+                const saved = ch.notes ?? ''
+                if (v !== saved) updateCurrentChannelNotes(v)
+              }}
               placeholder="Describe this channel — genres, artists, era, mood…"
               rows={1}
               className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 pr-7 text-xs text-white placeholder-zinc-500 resize-y focus:outline-none focus:border-zinc-500"
@@ -4979,19 +4987,16 @@ export default function PlayerClient({
             {channelSearchText && (
               <button
                 type="button"
-                onClick={() => setChannelSearchText('')}
+                onPointerDown={e => e.preventDefault()}
+                onClick={() => {
+                  setChannelSearchText('')
+                  updateCurrentChannelNotes('')
+                }}
                 className="absolute top-2 right-2 text-zinc-500 hover:text-zinc-300 transition-colors leading-none"
                 title="Clear"
               >×</button>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => updateCurrentChannelNotes(channelSearchText)}
-            className="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-xs transition-colors whitespace-nowrap flex-shrink-0"
-          >
-            Update channel
-          </button>
           <button
             type="button"
             onClick={() => void createChannelWithNotes(channelSearchText)}
