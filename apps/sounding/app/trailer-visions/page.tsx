@@ -427,7 +427,6 @@ const PassNextButton = memo(function PassNextButton({
     <button
       type="button"
       disabled={disabled}
-      onPointerDown={(e) => e.preventDefault()}
       onClick={onPass}
       className={`inline-flex items-center justify-center shrink-0 touch-manipulation transition-all select-none ${surface} focus-visible:outline-none ${sizing} ${
         disabled ? "cursor-not-allowed opacity-40" : ""
@@ -2265,24 +2264,46 @@ export default function Home() {
       }
       persistPrefetchQueue();
 
-      // Queue empty — wait for whatever is already in-flight, or start a fresh batch.
+      // Queue empty — refill until something lands or we're truly stuck / timed out.
+      // (Old bug: waited only while replenishGenInFlight > 0, so when a batch finished empty the counter hit 0
+      // and we bailed immediately — requiring a second click to kick replenish again.)
       try {
-        zeroYieldStreakRef.current = 0; // reset so the daisy-chain can run
-        if (replenishGenInFlight.current === 0) replenish(opts); // no current-gen batch running — kick one off
+        zeroYieldStreakRef.current = 0; // reset so the daisy-chain can run on this gesture
         const deadline = Date.now() + 90_000;
-        while (prefetchRef.current.length === 0 && replenishGenInFlight.current > 0 && Date.now() < deadline) {
+        while (prefetchRef.current.length === 0 && Date.now() < deadline) {
+          if (
+            replenishGenInFlight.current === 0 &&
+            zeroYieldStreakRef.current < 3 &&
+            !careerModeRef.current
+          ) {
+            void replenish(opts);
+          }
+          // Nothing in flight but nothing will start (yield-stopped) → stop waiting early.
+          if (replenishGenInFlight.current === 0 && zeroYieldStreakRef.current >= 3) break;
           await new Promise((r) => setTimeout(r, 200));
         }
-        const next = prefetchRef.current.shift();
-        persistPrefetchQueue();
-        if (!next) {
+
+        while (prefetchRef.current.length > 0) {
+          const [candidate, ...rest] = prefetchRef.current;
+          prefetchRef.current = rest;
+          const excluded = new Set<string>();
+          for (const h of historyRef.current) excluded.add(canonicalTitleKey(h.title));
+          for (const s of skippedRef.current) excluded.add(canonicalTitleKey(s));
+          for (const p of passedRef.current) excluded.add(canonicalTitleKey(p.title));
+          for (const w of watchlistRef.current) excluded.add(canonicalTitleKey(w.title));
+          mergeLlmDiscardFatigueIntoExcluded(excluded);
+          if (excluded.has(canonicalTitleKey(candidate.title))) continue;
+          if (opts.mediaType !== "both" && candidate.type !== opts.mediaType) continue;
+          persistPrefetchQueue();
+          setCurrent(candidate);
           setInitialLoading(false);
-          setFetchError("Couldn't find a new title. Try again.");
+          setFetchError(null);
+          if (replenishInFlight.current < MAX_REPLENISH_IN_FLIGHT) void replenish(opts);
           return;
         }
-        setCurrent(next);
+        persistPrefetchQueue();
         setInitialLoading(false);
-        setFetchError(null);
+        setFetchError("Couldn't find a new title. Try again.");
       } catch (e) {
         console.error("fetchNext failed:", e);
         setInitialLoading(false);

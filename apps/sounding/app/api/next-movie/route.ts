@@ -456,6 +456,9 @@ export async function POST(request: Request) {
   const surfParsed = Number(raw.trailersSurfaced ?? raw.trailersSeen ?? NaN);
   const trailersSurfaced = Number.isFinite(surfParsed) ? Math.max(0, Math.floor(surfParsed)) : 0;
 
+  const lowestSeenUserStars =
+    history.length === 0 ? null : Math.min(...history.map((h) => migrateRatingValue(h.userRating)));
+
   const ratedTitles = history.map((h) => h.title);
   const allExcluded = [...new Set([...ratedTitles, ...skipped, ...watchlistTitles])];
 
@@ -522,7 +525,7 @@ export async function POST(request: Request) {
 
   const pagingSystemNote =
     trailersSurfaced > 0
-      ? `\n- PAGING — If the user's message reports CARDS SURFACED > 0: imagine you ranked plausible titles from most broadly mainstream/obvious toward deeper catalog picks (under your constraints). **Skip that many imaginary leading slots.** Return **exactly ${batchCount}** titles representing only the immediate next slice — do not leak or list the skipped picks in JSON.\n`
+      ? `\n- PAGING — If the user's message reports CARDS SURFACED > 0: imagine you ranked plausible titles from most broadly mainstream/obvious toward deeper catalog picks (under your constraints). **Skip that many imaginary leading slots.** If it also reports a lowest seen user rating, use that alongside the count: modest stars on seen titles mean mainstream-leading picks are unlikely fits — push the mental cutoff slightly deeper without breaking channel constraints. Return **exactly ${batchCount}** titles representing only the immediate next slice — do not leak or list the skipped picks in JSON.\n`
       : "";
 
   const systemPrompt = `You are calibrating a movie/TV recommendation system to a specific user's taste.
@@ -569,6 +572,7 @@ EXCLUSION (counts only — the app drops any repeat client-side):
 ${allExcluded.length} titles already decided (${ratedTitles.length} rated, ${watchlistTitles.length} on watchlist, ${skipped.length} skipped/dismissed). Suggest ${batchCount} diverse candidates.
 
 CARDS SURFACED (trailer/card encounters counted by the client — how far to page past obvious picks): ${trailersSurfaced}
+${lowestSeenUserStars !== null ? `LOWEST SEEN USER RATING (among ${history.length} seen/star-rated titles in history — combines with surfaced count): ${lowestSeenUserStars}/5` : "LOWEST SEEN USER RATING: not applicable yet — no completed seen/star ratings in history (surfaced count may still rise from passes or unseen-interest)."}
 ${trailersSurfaced > 0 ? `PAGING NOW — Assume your usual ordering runs mainstream→deeper picks. Discard the leading ${trailersSurfaced} slots mentally and put **exactly ${batchCount} picks** after that cutoff in JSON "items" only.` : ""}
 
 ${history.length === 0 && allExcluded.length === 0
@@ -580,7 +584,7 @@ ${history.length === 0 && allExcluded.length === 0
   const logLlmPrompts = process.env.NEXT_MOVIE_LOG_LLM_PROMPTS === "1" || process.env.NEXT_MOVIE_LOG_LLM_PROMPTS === "true";
   if (logLlmPrompts) {
     console.log(
-      `[next-movie] LLM submit (${llm}): batch=${batchCount} surfaced=${trailersSurfaced}. sync=${raw.historySync ?? "legacy"} rated=${ratedTitles.length} promptLines=${informativeHistory.length} skipped=${skipped.length} watchlist=${watchlistTitles.length} notInterested=${notInterestedItems.length} excluded=${allExcluded.length}`
+      `[next-movie] LLM submit (${llm}): batch=${batchCount} surfaced=${trailersSurfaced} lowestSeen=${lowestSeenUserStars ?? 'n/a'}. sync=${raw.historySync ?? "legacy"} rated=${ratedTitles.length} promptLines=${informativeHistory.length} skipped=${skipped.length} watchlist=${watchlistTitles.length} notInterested=${notInterestedItems.length} excluded=${allExcluded.length}`
     );
     console.log("[next-movie] --- system prompt ---\n" + systemPrompt);
     console.log("[next-movie] --- user message ---\n" + userMessage);
@@ -604,6 +608,7 @@ ${history.length === 0 && allExcluded.length === 0
           mediaType,
           count: countRaw ?? null,
           trailersSurfaced,
+          lowestSeenUserStars,
           hasUserRequest: Boolean(userRequest),
           hasChannel: Boolean(activeChannel && activeChannel.id !== 'all'),
         },

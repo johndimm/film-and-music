@@ -349,7 +349,13 @@ export default function LlmLogsPage() {
 
             {index.files.length === 0 ? (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 text-sm text-zinc-300">
-                <p className="font-semibold text-zinc-200">No logs found on this server.</p>
+                <p className="font-semibold text-zinc-200">
+                  No logs found on this server — current <code className="font-mono text-indigo-300">LLM_LOG_LEVEL</code> ={' '}
+                  <code className="font-mono text-indigo-300">
+                    {index.llmLogLevel !== undefined ? String(index.llmLogLevel) : 'unknown'}
+                  </code>
+                  .
+                </p>
                 <p className="mt-2 leading-relaxed text-zinc-400">
                   In production you must enable logging by setting <code className="text-zinc-300">LLM_LOG_LEVEL</code> to{' '}
                   <code className="text-zinc-300">1</code> (latest only) or <code className="text-zinc-300">2</code> (keep history).
