@@ -25,6 +25,8 @@ type CategoryLatest = {
 
 type IndexResponse = {
   logRoot: string
+  vercel?: boolean
+  llmLogLevel?: 0 | 1 | 2
   default: (FileRef & { event: LlmEvent | null }) | null
   latestByCategory: CategoryLatest[]
   files: FileRef[]
@@ -340,8 +342,22 @@ export default function LlmLogsPage() {
         {index && !loading && (
           <>
             <p className="text-sm text-zinc-500">
-              Log root: <code className="text-zinc-400">{index.logRoot}</code> · {index.files.length} file(s)
+              Log root: <code className="text-zinc-400">{index.logRoot}</code> · level{' '}
+              <code className="text-zinc-400">{String(index.llmLogLevel ?? '?')}</code>
+              {index.vercel ? ' · Vercel' : ''} · {index.files.length} file(s)
             </p>
+
+            {index.files.length === 0 ? (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 text-sm text-zinc-300">
+                <p className="font-semibold text-zinc-200">No logs found on this server.</p>
+                <p className="mt-2 leading-relaxed text-zinc-400">
+                  In production you must enable logging by setting <code className="text-zinc-300">LLM_LOG_LEVEL</code> to{' '}
+                  <code className="text-zinc-300">1</code> (latest only) or <code className="text-zinc-300">2</code> (keep history).
+                  On Vercel logs are written under <code className="text-zinc-300">/tmp</code> and may reset when the serverless
+                  instance changes or redeploys.
+                </p>
+              </div>
+            ) : null}
 
             {(index.latestByCategory ?? []).length > 0 && (
               <section className="space-y-4">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   getLlmLogRootDir,
+  getLlmLogLevel,
   listAllLlmLogFiles,
   LLM_LOG_TYPE_INFO,
   pickLatestFilePerAppType,
@@ -72,6 +73,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     {
       logRoot: getLlmLogRootDir(),
+      vercel: Boolean(process.env.VERCEL),
+      llmLogLevel: getLlmLogLevel(),
       default: defaultPayload,
       latestByCategory,
       files: sorted.map(publicFileRef),
