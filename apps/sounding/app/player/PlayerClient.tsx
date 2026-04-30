@@ -2880,10 +2880,19 @@ export default function PlayerClient({
 
   useEffect(() => {
     if (currentCard) {
+      const stripBrackets = (s: string) => s.replace(/\s*[\(\[].*?[\)\]]/g, '').trim()
+      const stripEditionSuffix = (s: string) =>
+        s
+          .replace(/\s*[-–—]\s*(remaster(?:ed)?(?:\s*\d{4})?|rudy van gelder edition|deluxe(?: edition)?|expanded(?: edition)?|special edition)\b.*$/i, '')
+          .trim()
+      const stripSlashEdition = (s: string) => s.split(/\s*\/\s*/)[0]?.trim() ?? s.trim()
+      const cleanTitle = (s: string) => stripEditionSuffix(stripSlashEdition(stripBrackets(s)))
+
       writeNowPlayingSnapshot({
         artist: currentCard.track.artist,
-        track: currentCard.track.name,
-        album: currentCard.track.album?.trim() || undefined,
+        track: cleanTitle(currentCard.track.name),
+        // Prefer a “plain” album title so Constellations can match composite work nodes like “Night Dreamer (1964)”.
+        album: currentCard.track.album?.trim() ? cleanTitle(currentCard.track.album.trim()) : undefined,
       })
     } else {
       writeNowPlayingSnapshot(null)

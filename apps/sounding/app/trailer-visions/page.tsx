@@ -16,7 +16,10 @@ import {
   careerPersonNameMatch,
   careerUi,
   LEGACY_PREFETCH_QUEUE_KEY,
+  normalizePassedStorage,
+  passedRowsToTitles,
   prefetchQueueStorageKey,
+  type PassedRow,
   type TrailerCareerFilm,
   type TrailerCareerMode,
   trailerVisionStorage,
@@ -1660,7 +1663,7 @@ export default function Home() {
   /** Persisted lists — refs only on this page (nothing in the tree reads them for render). Updates skip full-tree re-renders. */
   const historyRef = useRef<RatingEntry[]>([]);
   const skippedRef = useRef<string[]>([]);
-  const passedRef = useRef<string[]>([]);
+  const passedRef = useRef<PassedRow[]>([]);
   const watchlistRef = useRef<WatchlistEntry[]>([]);
   const notSeenRef = useRef<NotSeenEvent[]>([]);
   const notInterestedRef = useRef<{ title: string; rtScore?: string | null }[]>([]);
@@ -1936,7 +1939,13 @@ export default function Home() {
       const storedSkipped = localStorage.getItem(SKIPPED_KEY);
       if (storedSkipped) skippedRef.current = JSON.parse(storedSkipped);
       const storedPassed = localStorage.getItem(PASSED_KEY);
-      if (storedPassed) passedRef.current = JSON.parse(storedPassed);
+      if (storedPassed) {
+        try {
+          passedRef.current = normalizePassedStorage(JSON.parse(storedPassed));
+        } catch {
+          passedRef.current = [];
+        }
+      }
       const storedWatchlist = localStorage.getItem(WATCHLIST_KEY);
       if (storedWatchlist) watchlistRef.current = JSON.parse(storedWatchlist);
       const storedNotSeen = localStorage.getItem(NOTSEEN_KEY);
@@ -2160,7 +2169,7 @@ export default function Home() {
     try {
       const skippedForApi = [
         ...skippedRef.current,
-        ...passedRef.current,
+        ...passedRowsToTitles(passedRef.current),
         ...extraRetrySkips,
         ...prefetchRef.current.map((m) => m.title),
       ];
@@ -2181,7 +2190,7 @@ export default function Home() {
         const excluded = new Set<string>();
         for (const h of historyRef.current) excluded.add(canonicalTitleKey(h.title));
         for (const s of skippedRef.current) excluded.add(canonicalTitleKey(s));
-        for (const p of passedRef.current) excluded.add(canonicalTitleKey(p));
+        for (const p of passedRef.current) excluded.add(canonicalTitleKey(p.title));
         for (const w of watchlistRef.current) excluded.add(canonicalTitleKey(w.title));
         for (const m of prefetchRef.current) excluded.add(canonicalTitleKey(m.title));
         mergeLlmDiscardFatigueIntoExcluded(excluded);
@@ -2242,7 +2251,7 @@ export default function Home() {
         const excluded = new Set<string>();
         for (const h of historyRef.current) excluded.add(canonicalTitleKey(h.title));
         for (const s of skippedRef.current) excluded.add(canonicalTitleKey(s));
-        for (const p of passedRef.current) excluded.add(canonicalTitleKey(p));
+        for (const p of passedRef.current) excluded.add(canonicalTitleKey(p.title));
         for (const w of watchlistRef.current) excluded.add(canonicalTitleKey(w.title));
         mergeLlmDiscardFatigueIntoExcluded(excluded);
         if (excluded.has(canonicalTitleKey(next.title))) continue; // already seen — discard silently
@@ -2368,8 +2377,11 @@ export default function Home() {
     historyRef.current = hist;
     skippedRef.current = skip;
     const storedPassed = localStorage.getItem(PASSED_KEY);
-    const passedList: string[] = storedPassed ? JSON.parse(storedPassed) : [];
-    passedRef.current = passedList;
+    try {
+      passedRef.current = storedPassed ? normalizePassedStorage(JSON.parse(storedPassed)) : [];
+    } catch {
+      passedRef.current = [];
+    }
 
     watchlistRef.current = wl;
     notInterestedRef.current = ni;
@@ -2747,6 +2759,7 @@ export default function Home() {
       channelId,
       posterUrl: current.posterUrl,
       ratingMode,
+      ratedAt: new Date().toISOString(),
     };
     const newHistory = [...historyRef.current, entry];
     saveHistory(newHistory);
@@ -2780,7 +2793,13 @@ export default function Home() {
         submitRatingRef.current(autoStars, "seen");
       } else {
         const t = current.title;
-        const newPassed = [...passedRef.current, t];
+        const row: PassedRow = {
+          title: t,
+          type: current.type,
+          at: new Date().toISOString(),
+          channelId: activeChannelIdRef.current?.trim() || undefined,
+        };
+        const newPassed = [...passedRef.current, row];
         localStorage.setItem(PASSED_KEY, JSON.stringify(newPassed));
         passedRef.current = newPassed;
       }
@@ -3393,7 +3412,28 @@ export default function Home() {
                       />
                     </div>
                   ) : current.posterUrl && !current.trailerKey ? (
-                    <div className="border-b border-zinc-800/80 bg-zinc-950">
+                    <div className="relative border-b border-zinc-800/80 bg-zinc-950">
+                      {isTrailerFullscreen && (
+                        <>
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.preventDefault()}
+                            onClick={() => document.exitFullscreen?.()}
+                            className="absolute left-3 top-3 z-50 rounded-xl bg-black/55 p-2.5 text-white/85 hover:bg-black/80 hover:text-white transition-colors select-none sm:left-4 sm:top-4"
+                            title="Exit fullscreen"
+                            aria-label="Exit fullscreen"
+                          >
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v4m0-4h4M15 9l5-5m0 0v4m0-4h-4M9 15l-5 5m0 0v-4m0 4h4M15 15l5 5m0 0v-4m0 4h-4" />
+                            </svg>
+                          </button>
+                          <div
+                            ref={setFullscreenTopChromeMount}
+                            className="pointer-events-auto absolute right-3 top-3 z-50 flex max-w-[calc(100%-5rem)] items-center sm:right-4 sm:top-4"
+                            aria-label="Fullscreen trailer actions"
+                          />
+                        </>
+                      )}
                       <div className="flex min-w-0 items-start justify-between gap-3 p-4 sm:p-6">
                         <div className="min-w-0 flex-1">
                           <PosterMovieTop
@@ -3419,7 +3459,8 @@ export default function Home() {
                   {!current.trailerKey && (
                     <MovieRatingBlock
                       layout="trailerBar"
-                      trailerFullscreen={false}
+                      trailerFullscreen={isTrailerFullscreen}
+                      fullscreenTopChromeMount={fullscreenTopChromeMount}
                       passCurrentCardStable={passCurrentCardStable}
                       onRate={handlePendingChange}
                       movieTitle={current.title}

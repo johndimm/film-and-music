@@ -42,14 +42,16 @@ export default function RatingsPage() {
       try {
         const h = localStorage.getItem(STORAGE_KEY);
         if (h) {
-          const parsed = JSON.parse(h) as RatingEntry[];
-          setHistory(
-            parsed.map((e) => {
-              const u = migrateRatingValue(e.userRating);
-              const p = migrateRatingValue(e.predictedRating);
-              return { ...e, userRating: u, predictedRating: p, error: Math.abs(u - p) };
-            })
-          );
+          const parsed = JSON.parse(h) as unknown;
+          if (Array.isArray(parsed)) {
+            setHistory(
+              (parsed as RatingEntry[]).map((e) => {
+                const u = migrateRatingValue(e.userRating);
+                const p = migrateRatingValue(e.predictedRating);
+                return { ...e, userRating: u, predictedRating: p, error: Math.abs(u - p) };
+              })
+            );
+          }
         }
         const wl = localStorage.getItem(WATCHLIST_KEY);
         if (wl) setWatchlist(JSON.parse(wl));
@@ -78,6 +80,17 @@ export default function RatingsPage() {
     }
     return out;
   }, [skipped, watchlist, notInterested]);
+
+  /** If Seen is empty but another bucket has rows, prefer that tab once data hydrates from localStorage */
+  useEffect(() => {
+    setTab((t) => {
+      if (t !== "seen") return t;
+      if (history.length > 0) return t;
+      if (watchlist.length > 0) return "watchlist";
+      if (dontSeeRows.length > 0) return "not-interested";
+      return t;
+    });
+  }, [history.length, watchlist.length, dontSeeRows.length]);
 
   const reconsiderHistory = (entry: RatingEntry) => {
     const newHistory = history.filter((h) => h.title !== entry.title);
@@ -234,8 +247,19 @@ export default function RatingsPage() {
         )}
 
         {tab === "seen" && history.length === 0 && (
-          <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-6 text-center text-zinc-400 text-sm">
-            No seen ratings yet.
+          <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm p-6 text-center text-zinc-400 text-sm space-y-2">
+            <p>No seen ratings yet. This list is only for titles you rated with red stars (already seen).</p>
+            <p>
+              Interest in titles you haven&apos;t watched is on the{" "}
+              <button
+                type="button"
+                className="font-medium text-indigo-600 underline-offset-2 hover:underline"
+                onClick={() => setTab("watchlist")}
+              >
+                Watchlist
+              </button>{" "}
+              tab.
+            </p>
           </div>
         )}
 

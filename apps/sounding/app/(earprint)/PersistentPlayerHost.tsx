@@ -140,6 +140,10 @@ function PersistentPlayerHostInner({
     pendingShareGate
   const isPlayerRoute = pathname.startsWith('/player')
   const isMovieRoute = pathname.startsWith('/trailer-visions')
+  // Keep Soundings playback running while viewing “read-only” movie pages like Logs/Help.
+  // We only need to avoid double-audio or heavy contention on the Trailer Vision player itself.
+  const isMoviePlayerRoute =
+    pathname === '/trailer-visions' || pathname.startsWith('/trailer-visions/player')
   /**
    * Film & Music splash — never mount off-screen playback here.
    * Normalize so `/`, ``, and trailing-slash-only variants all count as landing (`next.config` trailingSlash edge cases).
@@ -147,7 +151,7 @@ function PersistentPlayerHostInner({
   const pathNorm = pathname.replace(/\/+$/, '')
   const isFilmMusicLanding = pathNorm === '' || pathNorm === '/'
 
-  if (!canPlay || isMovieRoute || isFilmMusicLanding) {
+  if (!canPlay || isMoviePlayerRoute || isFilmMusicLanding) {
     return <>{children}</>
   }
 

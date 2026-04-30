@@ -32,4 +32,16 @@ export { LlmBulletedText } from './LlmBulletedText'
 export { musicPlatformConfig } from './extensions/music'
 export { moviesPlatformConfig } from './extensions/movies'
 export { AppShell } from './shell/AppShell'
+export type {
+  PassedRow,
+  PresentationHistorySeen,
+  PresentationHistoryUnseen,
+  PresentationRow,
+  PresentationRowProvenance,
+} from './trailerVision/presentationHistory'
+export {
+  buildPresentationRows,
+  normalizePassedStorage,
+  passedRowsToTitles,
+} from './trailerVision/presentationHistory'
 export { PlatformProvider, usePlatformConfig, useMediaMode } from './PlatformContext'

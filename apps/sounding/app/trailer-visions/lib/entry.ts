@@ -8,6 +8,8 @@ export interface RatingEntry {
   channelId?: string;
   posterUrl?: string | null;
   ratingMode?: "seen" | "unseen";
+  /** ISO timestamp when this red-star rating was saved (optional for older rows). */
+  ratedAt?: string;
 }
 
 export interface WatchlistEntry {

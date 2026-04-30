@@ -31,3 +31,15 @@ export { musicPlatformConfig } from './extensions/music'
 export { moviesPlatformConfig } from './extensions/movies'
 export { AppShell } from './shell/AppShell'
 export { PlatformProvider, usePlatformConfig, useMediaMode } from './PlatformContext'
+export type {
+  PassedRow,
+  PresentationHistorySeen,
+  PresentationHistoryUnseen,
+  PresentationRow,
+  PresentationRowProvenance,
+} from './trailerVision/presentationHistory'
+export {
+  buildPresentationRows,
+  normalizePassedStorage,
+  passedRowsToTitles,
+} from './trailerVision/presentationHistory'
