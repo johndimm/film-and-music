@@ -1674,6 +1674,8 @@ export default function Home() {
   const [initialLoading, setInitialLoading] = useState(true);
   /** True while fetchNext is loading the next title (after first card). Not tied to card opacity — avoids collapsing the layout. */
   const [isAdvancingCard, setIsAdvancingCard] = useState(false);
+  /** Active POST /api/next-movie replenish calls (background prefetch). Mirrors replenish start/finally — not refs so the UI updates. */
+  const [llmPrefetchInFlight, setLlmPrefetchInFlight] = useState(0);
   const advanceFetchDepthRef = useRef(0);
   const [pendingRating, setPendingRating] = useState<{ stars: number; mode: "seen" | "unseen" } | null>(null);
   const pendingRatingRef = useRef(pendingRating);
@@ -2162,6 +2164,7 @@ export default function Home() {
     const genAtStart = replenishGenRef.current;
     replenishInFlight.current++;
     replenishGenInFlight.current++;
+    setLlmPrefetchInFlight((n) => n + 1);
     lensIndexRef.current++; // advance lens so concurrent batches each explore a different area
     const seenThisBatch = new Set<string>();
 
@@ -2217,6 +2220,7 @@ export default function Home() {
     } finally {
       replenishInFlight.current--;
       if (genAtStart === replenishGenRef.current) replenishGenInFlight.current = Math.max(0, replenishGenInFlight.current - 1);
+      setLlmPrefetchInFlight((n) => Math.max(0, n - 1));
       // Daisy-chain: keep filling until high-water mark, but stop if recent batches are all dupes.
       // zeroYieldStreak >= 3 means the LLM is stuck — no point hammering it further.
       if (
@@ -3252,9 +3256,61 @@ export default function Home() {
     return { term: t, id: `trailer:${ch}:${canonicalTitleKey(t)}` };
   }, [activeChannelId, current]);
 
+  const llmActive = llmPrefetchInFlight > 0 || isAdvancingCard;
+
   return (
     <div className="flex min-h-screen w-full flex-col items-center bg-black px-4 py-6 sm:py-10">
       <div className="w-full max-w-3xl space-y-4 sm:space-y-6">
+        <div
+          className={`sticky top-11 z-30 flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-xs font-medium shadow-sm backdrop-blur-sm sm:text-sm sm:gap-3 ${
+            careerMode
+              ? "border-amber-600/35 bg-amber-950/80 text-amber-100"
+              : llmActive
+                ? "border-indigo-500/55 bg-indigo-950/90 text-indigo-100 shadow-indigo-950/40"
+                : "border-zinc-700/90 bg-zinc-900/90 text-zinc-400"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <span
+            className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+              careerMode ? "bg-amber-400" : llmActive ? "animate-pulse bg-amber-400 shadow-[0_0_12px_theme(colors.amber.400)]" : "bg-zinc-600"
+            }`}
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1 leading-snug">
+            {careerMode ? (
+              <>Career mode — browsing filmography (LLM suggestions off)</>
+            ) : llmActive ? (
+              <>
+                <span className="font-semibold text-zinc-50">LLM working</span>
+                <span className="text-indigo-200/90">
+                  {" "}
+                  —{" "}
+                  {[
+                    llmPrefetchInFlight > 0 &&
+                      `${llmPrefetchInFlight} prefetch request${llmPrefetchInFlight === 1 ? "" : "s"}`,
+                    isAdvancingCard && "opening next card",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "…"}
+                  {" · "}queue&nbsp;<span className="tabular-nums">{prefetchQueueUi.length}</span>
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-zinc-300">LLM idle</span>
+                <span className="text-zinc-500">
+                  {" "}
+                  — queue&nbsp;<span className="tabular-nums">{prefetchQueueUi.length}</span> title
+                  {prefetchQueueUi.length === 1 ? "" : "s"}
+                  {prefetchQueueUi.length < HIGH_WATER_MARK ? " · refilling in background when needed" : ""}
+                </span>
+              </>
+            )}
+          </span>
+        </div>
+
         <ChannelsToolbar
           channels={channels}
           activeChannelId={activeChannelId}
@@ -3651,16 +3707,6 @@ export default function Home() {
           </button>
         </div>
       )}
-
-      {/* Thinking indicator — fixed so it's always visible */}
-      <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-zinc-900 text-white text-sm shadow-lg transition-all duration-300 ${isAdvancingCard ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}>
-        <div className="flex gap-1">
-          {[0,1,2].map(i => (
-            <div key={i} className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-          ))}
-        </div>
-        LLM is thinking…
-      </div>
 
       {/* Lightbox */}
       {lightboxUrl && (

@@ -57,3 +57,4 @@ Use **`http://127.0.0.1:8000/callback`**, not `http://localhost:...` — Spotify
 1. **Flesh out `PlatformAdapter`** in `@film-music/platform` and implement `music` / `movies` providers (Spotify, YouTube, movie LLM) behind that interface.
 2. **Move** real pages from `apps/sounding` → `apps/film-music/app/m/...` and `apps/trailer-vision` → `apps/film-music/app/v/...`, re-point imports and API routes into the unified app.
 3. **Retire** the legacy `apps/sounding` and `apps/trailer-vision` apps once parity is there, or keep them for A/B.
+
