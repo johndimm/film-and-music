@@ -905,6 +905,58 @@ const TrailerPlayer = memo(function TrailerPlayer({
     };
   }, []);
 
+  /** Pause when scrolled mostly off-screen; resume when scrolled back while tab-visible. Skip when inside browser fullscreen (ancestor element). */
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const rootEl = wrapperRef.current;
+    if (!rootEl) return;
+
+    const resumeIfStalledWhileVisibleAndInView = () => {
+      try {
+        if (document.visibilityState !== "visible") return;
+        const fs = document.fullscreenElement;
+        const re = wrapperRef.current;
+        if (fs && re && (fs === re || fs.contains(re))) return;
+        const p = playerRef.current;
+        if (!p) return;
+        const state = p.getPlayerState?.();
+        const Y = window.YT;
+        const playing = Y?.PlayerState?.PLAYING ?? 1;
+        const buffering = Y?.PlayerState?.BUFFERING ?? 3;
+        if (state !== playing && state !== buffering) p.playVideo?.();
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const IN_VIEW_THRESHOLD = 0.12;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        try {
+          const fs = document.fullscreenElement;
+          const re = wrapperRef.current;
+          if (fs && re && (fs === re || fs.contains(re))) {
+            resumeIfStalledWhileVisibleAndInView();
+            return;
+          }
+        } catch {
+          /* ignore */
+        }
+        if (!entry.isIntersecting || entry.intersectionRatio < IN_VIEW_THRESHOLD) {
+          pauseYouTubePlayer(playerRef.current);
+        } else if (document.visibilityState === "visible") {
+          resumeIfStalledWhileVisibleAndInView();
+        }
+      },
+      { root: null, rootMargin: "0px", threshold: [0, 0.06, IN_VIEW_THRESHOLD, 0.5, 1] },
+    );
+    io.observe(rootEl);
+    return () => io.disconnect();
+  }, []);
+
   return (
     <div
       ref={wrapperRef}
@@ -2030,6 +2082,8 @@ export default function Home() {
         const hist = historyRef.current;
         const wl = watchlistRef.current;
         const ni = notInterestedRef.current;
+        const trailersSurfaced =
+          hist.length + passedRef.current.length + notSeenRef.current.length;
         const res = await fetch("/api/next-movie", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2039,6 +2093,7 @@ export default function Home() {
             skipped: opts.skipped,
             watchlistTitles: wl.map((w) => ({ title: w.title, rtScore: w.rtScore })),
             notInterestedItems: ni,
+            trailersSurfaced,
             tasteSummary: tasteSummaryRef.current ?? undefined,
             diversityLens: DIVERSITY_LENSES[lensIndexRef.current % DIVERSITY_LENSES.length],
             userRequest: userRequestRef.current.trim() || undefined,

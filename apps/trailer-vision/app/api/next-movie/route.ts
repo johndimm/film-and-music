@@ -412,6 +412,9 @@ export async function POST(request: Request) {
     mediaType?: "movie" | "tv" | "both";
     llm?: string;
     count?: number;
+    /** Cumulative trailer/card surfaces (ratings + unseen interest submits + passes) — obscurity paging. */
+    trailersSurfaced?: number;
+    trailersSeen?: number;
   };
 
   const skipped = raw.skipped ?? [];
@@ -450,6 +453,8 @@ export async function POST(request: Request) {
   const history = merged.history;
 
   const batchCount = Math.min(MAX_BATCH, Math.max(1, Math.floor(Number(countRaw) || DEFAULT_BATCH)));
+  const surfParsed = Number(raw.trailersSurfaced ?? raw.trailersSeen ?? NaN);
+  const trailersSurfaced = Number.isFinite(surfParsed) ? Math.max(0, Math.floor(surfParsed)) : 0;
 
   const ratedTitles = history.map((h) => h.title);
   const allExcluded = [...new Set([...ratedTitles, ...skipped, ...watchlistTitles])];
@@ -515,6 +520,11 @@ export async function POST(request: Request) {
         ? '\nIMPORTANT: Every item must be a TV series only (not movies). Each "type" field must be "tv".'
         : "";
 
+  const pagingSystemNote =
+    trailersSurfaced > 0
+      ? `\n- PAGING — If the user's message reports CARDS SURFACED > 0: imagine you ranked plausible titles from most broadly mainstream/obvious toward deeper catalog picks (under your constraints). **Skip that many imaginary leading slots.** Return **exactly ${batchCount}** titles representing only the immediate next slice — do not leak or list the skipped picks in JSON.\n`
+      : "";
+
   const systemPrompt = `You are calibrating a movie/TV recommendation system to a specific user's taste.
 
 The user rates with **half stars from 0.5 to 5** (not percentages). Rotten Tomatoes Tomatometer scores are percentages; the app converts them to the same star scale for comparison.
@@ -538,7 +548,7 @@ Rules:
 - All string values must be on a single line — no newline characters inside strings
 - Vary genres, eras, and (if media allows) movie vs TV to calibrate faster
 - Predict honestly — vary predictions; the midpoint is not always 3
-- Taste data below is intentionally small: high-divergence ratings, low-RT wants, high-RT dismissals. Full exclusion is not listed.${mediaConstraint}${channelConstraint ? `\n\n${channelConstraint}` : ""}${userRequest ? `\nUSER REQUEST — ADDITIONAL HARD CONSTRAINT: The user has also asked for "${userRequest}". Every item must satisfy BOTH the channel requirements above AND this request.` : !channelConstraint && diversityLens ? `\nDIVERSITY LENS FOR THIS BATCH: ${diversityLens}. Every item must fit this lens. This is how the app explores beyond the obvious — treat it as a hard constraint.` : ""}`;
+- Taste data below is intentionally small: high-divergence ratings, low-RT wants, high-RT dismissals. Full exclusion is not listed.${pagingSystemNote}${mediaConstraint}${channelConstraint ? `\n\n${channelConstraint}` : ""}${userRequest ? `\nUSER REQUEST — ADDITIONAL HARD CONSTRAINT: The user has also asked for "${userRequest}". Every item must satisfy BOTH the channel requirements above AND this request.` : !channelConstraint && diversityLens ? `\nDIVERSITY LENS FOR THIS BATCH: ${diversityLens}. Every item must fit this lens. This is how the app explores beyond the obvious — treat it as a hard constraint.` : ""}`;
 
   const tasteSummarySection = existingTasteSummary
     ? `RUNNING TASTE PROFILE (your summary from the previous session — treat as primary signal, refine it):
@@ -558,6 +568,9 @@ Not interested despite HIGH RT (${HIGH_RT_THRESHOLD}%+): ${highRtSkipText}
 EXCLUSION (counts only — the app drops any repeat client-side):
 ${allExcluded.length} titles already decided (${ratedTitles.length} rated, ${watchlistTitles.length} on watchlist, ${skipped.length} skipped/dismissed). Suggest ${batchCount} diverse candidates.
 
+CARDS SURFACED (trailer/card encounters counted by the client — how far to page past obvious picks): ${trailersSurfaced}
+${trailersSurfaced > 0 ? `PAGING NOW — Assume your usual ordering runs mainstream→deeper picks. Discard the leading ${trailersSurfaced} slots mentally and put **exactly ${batchCount} picks** after that cutoff in JSON "items" only.` : ""}
+
 ${history.length === 0 && allExcluded.length === 0
   ? `No history yet — suggest ${batchCount} well-known, widely-seen titles to start learning preferences (varied mix of genres helps).`
   : `Analyze all signals above and pick ${batchCount} titles that will confirm or usefully challenge your model of their taste.`}`;
@@ -567,7 +580,7 @@ ${history.length === 0 && allExcluded.length === 0
   const logLlmPrompts = process.env.NEXT_MOVIE_LOG_LLM_PROMPTS === "1" || process.env.NEXT_MOVIE_LOG_LLM_PROMPTS === "true";
   if (logLlmPrompts) {
     console.log(
-      `[next-movie] LLM submit (${llm}): ${batchCount} titles requested. sync=${raw.historySync ?? "legacy"} rated=${ratedTitles.length} promptLines=${informativeHistory.length} skipped=${skipped.length} watchlist=${watchlistTitles.length} notInterested=${notInterestedItems.length} excluded=${allExcluded.length}`
+      `[next-movie] LLM submit (${llm}): batch=${batchCount} surfaced=${trailersSurfaced}. sync=${raw.historySync ?? "legacy"} rated=${ratedTitles.length} promptLines=${informativeHistory.length} skipped=${skipped.length} watchlist=${watchlistTitles.length} notInterested=${notInterestedItems.length} excluded=${allExcluded.length}`
     );
     console.log("[next-movie] --- system prompt ---\n" + systemPrompt);
     console.log("[next-movie] --- user message ---\n" + userMessage);
@@ -590,6 +603,7 @@ ${history.length === 0 && allExcluded.length === 0
           historySync: raw.historySync ?? null,
           mediaType,
           count: countRaw ?? null,
+          trailersSurfaced,
           hasUserRequest: Boolean(userRequest),
           hasChannel: Boolean(activeChannel && activeChannel.id !== "all"),
         },
@@ -660,21 +674,21 @@ ${history.length === 0 && allExcluded.length === 0
     return Response.json({ error: "No valid titles in response", raw: text }, { status: 500 });
   }
 
+  const movies = normalized.slice(0, batchCount);
+
   if (process.env.TMDB_API_KEY) {
-    const assets = await Promise.all(
-      normalized.map((m) => fetchTmdbAssets(m.title, m.type, m.year))
-    );
-    for (let i = 0; i < normalized.length; i++) {
-      normalized[i] = { ...normalized[i], posterUrl: assets[i].posterUrl, trailerKey: assets[i].trailerKey };
+    const assets = await Promise.all(movies.map((m) => fetchTmdbAssets(m.title, m.type, m.year)));
+    for (let i = 0; i < movies.length; i++) {
+      movies[i] = { ...movies[i], posterUrl: assets[i].posterUrl, trailerKey: assets[i].trailerKey };
     }
   } else {
     // No TMDB: Serper is slow and can hit quota; run sequentially so the first error disables the rest.
-    for (let i = 0; i < normalized.length; i++) {
-      const m = normalized[i]!;
+    for (let i = 0; i < movies.length; i++) {
+      const m = movies[i]!;
       const posterUrl = await fetchPosterFallback(m.title, m.type, m.year);
-      normalized[i] = { ...m, posterUrl, trailerKey: null };
+      movies[i] = { ...m, posterUrl, trailerKey: null };
     }
   }
 
-  return Response.json({ movies: normalized });
+  return Response.json({ movies });
 }
