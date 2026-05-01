@@ -139,7 +139,6 @@ function PersistentPlayerHostInner({
     Boolean(shareFromQuery) ||
     pendingShareGate
   const isPlayerRoute = pathname.startsWith('/player')
-  const isMovieRoute = pathname.startsWith('/trailer-visions')
   // Keep Soundings playback running while viewing “read-only” movie pages like Logs/Help.
   // We only need to avoid double-audio or heavy contention on the Trailer Vision player itself.
   // Channel History is full-screen browsing (often on TV): remounting the off-screen player here
