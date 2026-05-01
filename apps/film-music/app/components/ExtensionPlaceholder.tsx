@@ -11,9 +11,9 @@ export function ExtensionPlaceholder({
 }) {
   const legacy =
     mode === 'unified'
-      ? 'apps/sounding and apps/trailer-vision'
+      ? 'apps/soundings and apps/trailer-vision'
       : mode === 'music'
-        ? 'apps/sounding'
+        ? 'apps/soundings'
         : 'apps/trailer-vision'
   return (
     <div className="mx-auto max-w-lg px-4 py-10">

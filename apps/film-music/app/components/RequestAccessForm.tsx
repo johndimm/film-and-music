@@ -29,7 +29,7 @@ export default function RequestAccessForm() {
 
   return (
     <form onSubmit={submit} className="mx-auto flex w-full max-w-md flex-col items-center gap-3">
-      <p className="text-base font-medium text-zinc-300">Request Spotify access</p>
+      <p className="text-base font-medium text-zinc-300">Request Spotify allow-list access</p>
       <div className="flex w-full gap-2">
         <input
           type="email"

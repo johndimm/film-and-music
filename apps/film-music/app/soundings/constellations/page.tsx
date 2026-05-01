@@ -5,7 +5,7 @@ export default function MusicConstellationsPage() {
     <ExtensionPlaceholder
       title="Graph"
       mode="music"
-      note="Re-use @film-music/constellations as in apps/sounding."
+      note="Re-use @film-music/constellations as in apps/soundings."
     />
   )
 }

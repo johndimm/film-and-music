@@ -1,6 +1,6 @@
 {
-  "buildCommand": "npm run build -w @film-music/sounding",
+  "buildCommand": "npm run build -w @film-music/soundings",
   "installCommand": "npm install",
-  "outputDirectory": "apps/sounding/.next",
+  "outputDirectory": "apps/soundings/.next",
   "framework": "nextjs"
 }

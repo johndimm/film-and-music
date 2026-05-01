@@ -22,7 +22,7 @@ function resolveLucideDir(): string {
   }
   throw new Error(
     'lucide-react is not installed. On Vercel, set Root Directory to the monorepo root, ' +
-      'or add apps/sounding/vercel.json (install from repo root) as documented in vercel.json.',
+      'or add apps/soundings/vercel.json (install from repo root) as documented in vercel.json.',
   )
 }
 

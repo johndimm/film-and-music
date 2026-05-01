@@ -1,18 +1,20 @@
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 import RequestAccessForm from '@/app/components/RequestAccessForm'
 import SplashAuthCard from '@/app/SplashAuthCard'
 
-const SHARED_DESC =
-  'Film & Music is the umbrella for two sibling apps: Soundings for music and Trailer Vision for movies — neither product owns the other. An optional unified channel list can blend stations and picks from both.'
+const SHARED_DESC = 'Soundings: music. Trailer Vision: movies. Same deployment.'
 const MUSIC_DESC =
   'Discovery with Spotify & YouTube: channels, queue, interactive graph.'
 const FILM_DESC =
   'Describe your taste, browse trailers, rate what you watched, save a watchlist.'
 
 /**
- * Mirrors `apps/sounding/app/page.tsx`: sibling apps Soundings and Trailer Vision under Film & Music.
+ * Mirrors `apps/soundings/app/page.tsx`: sibling apps Soundings and Trailer Vision under Film & Music.
  */
-export default function SplashPage() {
+export default async function SplashPage() {
+  const cookieStore = await cookies()
+  const hasSpotify = cookieStore.has('spotify_access_token')
   const loginUrl = '/api/auth/login'
   const ytUrl = '/api/auth/youtube'
 
@@ -38,7 +40,7 @@ export default function SplashPage() {
               <h2 className={`${appTitle} mt-5`}>Soundings</h2>
               <p className={`${appBody} mt-3`}>{MUSIC_DESC}</p>
             </div>
-            <SplashAuthCard loginUrl={loginUrl} ytUrl={ytUrl} />
+            <SplashAuthCard loginUrl={loginUrl} ytUrl={ytUrl} spotifySignedIn={hasSpotify} />
             <div className="mt-8 border-t border-zinc-800 pt-8">
               <RequestAccessForm />
             </div>
@@ -105,10 +107,6 @@ export default function SplashPage() {
             </div>
           </section>
         </div>
-
-        <p className="mt-10 pb-8 text-center text-sm leading-relaxed text-zinc-400">
-          A unified channel list can mix Station rows (Soundings) and movie picks (Trailer Vision) — sibling apps sharing a combined list only when you configure it.
-        </p>
       </div>
     </div>
   )

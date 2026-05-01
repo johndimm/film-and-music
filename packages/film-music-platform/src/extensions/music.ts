@@ -1,6 +1,6 @@
 import type { PlatformShellConfig } from '../types'
 
-/** Soundings — music, Spotify / YouTube, graph, same tab language as `apps/sounding`. */
+/** Soundings — music, Spotify / YouTube, graph, same tab language as `apps/soundings`. */
 export const musicPlatformConfig: PlatformShellConfig = {
   mode: 'music',
   productName: 'Soundings',

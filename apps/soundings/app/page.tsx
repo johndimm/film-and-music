@@ -4,8 +4,7 @@ import RequestAccessForm from './RequestAccessForm'
 import SplashAuthCard from './SplashAuthCard'
 import SplashAudioGuard from './SplashAudioGuard'
 
-const SHARED_DESC =
-  'Film & Music is the umbrella for two sibling apps: Soundings for music and Trailer Vision for movies — neither product owns the other. An optional unified channel list can blend stations and picks from both.'
+const SHARED_DESC = 'Soundings: music. Trailer Vision: movies. Same deployment.'
 const MUSIC_DESC =
   'Discovery with Spotify & YouTube: channels, queue, interactive graph.'
 const FILM_DESC =
@@ -55,16 +54,6 @@ export default async function SplashPage({
           </p>
         )}
 
-        {hasToken && !error ? (
-          <p className="mb-6 text-center text-sm text-emerald-300/90">
-            Spotify session active —{' '}
-            <Link href="/player" prefetch={false} className="font-semibold text-white underline-offset-2 hover:underline">
-              open Soundings
-            </Link>{' '}
-            when you are ready, or continue exploring below.
-          </p>
-        ) : null}
-
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch lg:gap-8">
             {/* Soundings */}
             <section className="flex min-h-0 flex-col rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 shadow-sm sm:p-8">
@@ -74,7 +63,11 @@ export default async function SplashPage({
                 <p className={`${appBody} mt-3`}>{MUSIC_DESC}</p>
               </div>
               {/* GET /api/auth/youtube sets cookies + redirects — avoid raw anchor tags here (prefetch can hit those URLs without an intentional click). */}
-              <SplashAuthCard loginUrl={loginUrl} ytUrl={ytUrl} />
+              <SplashAuthCard
+                loginUrl={loginUrl}
+                ytUrl={ytUrl}
+                spotifySignedIn={Boolean(hasToken && !error)}
+              />
               <div className="mt-8 border-t border-zinc-800 pt-8">
                 <RequestAccessForm />
               </div>
@@ -142,10 +135,6 @@ export default async function SplashPage({
               </div>
             </section>
         </div>
-
-        <p className="mt-10 text-center text-sm leading-relaxed text-zinc-400 pb-8">
-          A unified channel list can mix Station rows (Soundings) and movie picks (Trailer Vision) — sibling apps sharing a combined list only when you configure it.
-        </p>
       </div>
     </div>
   )

@@ -11,8 +11,9 @@
     "lucide-react": "^0.560.0"
   },
   "scripts": {
-    "dev": "npm run dev -w @film-music/sounding",
-    "dev:sounding": "npm run dev -w @film-music/sounding",
+    "dev": "npm run dev -w @film-music/soundings",
+    "dev:soundings": "npm run dev -w @film-music/soundings",
+    "dev:sounding": "npm run dev -w @film-music/soundings",
     "dev:film-music": "npm run dev -w @film-music/film-music",
     "dev:trailer-vision": "npm run dev -w @film-music/trailer-vision",
     "dev:constellations": "npm run dev -w @film-music/constellations",

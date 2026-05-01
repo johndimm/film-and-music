@@ -11,7 +11,7 @@ import type { ChannelKind } from '@film-music/platform'
  *   NEXT_PUBLIC_SOUNDINGS_ORIGIN=http://127.0.0.1:8000
  *   NEXT_PUBLIC_TRAILER_VISION_ORIGIN=http://127.0.0.1:3000
  *
- * Dev: `npm run dev:sounding` + `npm run dev:trailer-vision` alongside `npm run dev:unified`.
+ * Dev: `npm run dev:soundings` + `npm run dev:trailer-vision` alongside `npm run dev:unified`.
  */
 const DEFAULT_SOUNDINGS = 'http://127.0.0.1:8000'
 const DEFAULT_TRAILER = 'http://127.0.0.1:3000'
@@ -53,7 +53,7 @@ export function UnifiedProductPlayer({
         Embedded app: {kind === 'music' ? 'Soundings' : 'Trailer Vision'} — run the matching dev server
         if this stays blank (
         <code className="text-zinc-400">
-          {kind === 'music' ? 'npm run dev:sounding' : 'npm run dev:trailer-vision'}
+          {kind === 'music' ? 'npm run dev:soundings' : 'npm run dev:trailer-vision'}
         </code>
         ).
       </p>

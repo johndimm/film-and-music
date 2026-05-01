@@ -19,7 +19,7 @@ export type TrailerCareerMode = {
 
 /**
  * Music: LLM-built discography (Soundings), aligned with
- * `apps/sounding/app/api/career-discography/route.ts`.
+ * `apps/soundings/app/api/career-discography/route.ts`.
  */
 export type MusicCareerWork = {
   title: string

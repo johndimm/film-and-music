@@ -25,9 +25,9 @@ export async function GET(req: NextRequest) {
     if (!redirectUri) missing.push('SPOTIFY_REDIRECT_URI')
     return new NextResponse(
       `Spotify login is not configured. Set ${missing.join(' and ')} in a .env file:\n` +
-        `  • apps/sounding/.env.local  (or)\n` +
+        `  • apps/soundings/.env.local  (or)\n` +
         `  • .env.local at the monorepo root (next to package.json)\n` +
-        `Copy apps/sounding/.env.example to one of those paths and add your Spotify app values. ` +
+        `Copy apps/soundings/.env.example to one of those paths and add your Spotify app values. ` +
         `Register the same SPOTIFY_REDIRECT_URI in the Spotify Developer Dashboard (use http://127.0.0.1:3000/callback for local dev, not localhost). ` +
         `Restart the dev server after saving.`,
       { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } }
