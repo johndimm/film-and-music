@@ -142,8 +142,12 @@ function PersistentPlayerHostInner({
   const isMovieRoute = pathname.startsWith('/trailer-visions')
   // Keep Soundings playback running while viewing “read-only” movie pages like Logs/Help.
   // We only need to avoid double-audio or heavy contention on the Trailer Vision player itself.
+  // Channel History is full-screen browsing (often on TV): remounting the off-screen player here
+  // would resume Soundings after leaving the main trailer page — unwanted background music.
   const isMoviePlayerRoute =
-    pathname === '/trailer-visions' || pathname.startsWith('/trailer-visions/player')
+    pathname === '/trailer-visions' ||
+    pathname.startsWith('/trailer-visions/player') ||
+    pathname.startsWith('/trailer-visions/channel-history')
   /**
    * Film & Music splash — never mount off-screen playback here.
    * Normalize so `/`, ``, and trailing-slash-only variants all count as landing (`next.config` trailingSlash edge cases).
