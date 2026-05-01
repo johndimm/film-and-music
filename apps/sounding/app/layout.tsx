@@ -43,9 +43,9 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full bg-zinc-950 antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
         <PersistentPlayerHost
           accessToken={accessToken}
           youtubeResolveTestFromServer={youtubeResolveTestFromServer}

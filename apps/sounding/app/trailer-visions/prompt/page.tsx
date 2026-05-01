@@ -110,15 +110,13 @@ incrementally rather than starting from scratch.
 
 ## Prefetch queue with daisy-chain replenishment
 Maintain a client-side prefetch queue (ref, not state) of pre-fetched CurrentMovie objects.
-LLM_BATCH_SIZE = 5. MAX_REPLENISH_IN_FLIGHT = 3. HIGH_WATER_MARK = 6 (caps buffered cards so
-new ratings affect upcoming picks sooner; smaller than a deep backlog).
+LLM_BATCH_SIZE = 7. MAX_REPLENISH_IN_FLIGHT = 3. PREFETCH_REFILL_THRESHOLD = 3 (replenish() is a no-op while
+prefetch already has ≥3 titles buffered, so queues stay short).
 
-On card pop: show the card instantly; if replenishInFlight < MAX_REPLENISH_IN_FLIGHT, start
-a background replenish immediately (don't wait for the queue to run low).
+On card pop: show the card instantly; optionally call replenish (it skips if prefetch is deep enough).
 
-Daisy-chain: when any replenish completes, if queue < HIGH_WATER_MARK and a slot is free,
-immediately start another. This keeps up to MAX_REPLENISH_IN_FLIGHT fetches running so the
-queue refills. Stop the chain if zeroYieldStreak >= 3 (3 consecutive batches with 0 fresh
+Daisy-chain: when any replenish completes, try another if zeroYieldStreak allows; replenish() skips if
+prefetch depth is already ≥ PREFETCH_REFILL_THRESHOLD or concurrency is capped. Stop the chain if zeroYieldStreak >= 3 (3 consecutive batches with 0 fresh
 items — LLM is stuck). Reset the streak on any user action.
 
 Pre-display check: before showing a card popped from the queue, verify the title is not

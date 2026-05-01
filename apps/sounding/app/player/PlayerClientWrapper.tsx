@@ -3,7 +3,22 @@
 import { Suspense } from 'react'
 import dynamic from 'next/dynamic'
 
-const PlayerClient = dynamic(() => import('./PlayerClient'), { ssr: false })
+/** Matches player shell so oauth → /player does not flash a white viewport while lazy-loading. */
+function PlayerClientLoadingPlaceholder() {
+  return (
+    <div
+      className="min-h-dvh w-full shrink-0 bg-zinc-950"
+      aria-busy="true"
+      aria-live="polite"
+      aria-label="Loading Soundings"
+    />
+  )
+}
+
+const PlayerClient = dynamic(() => import('./PlayerClient'), {
+  ssr: false,
+  loading: PlayerClientLoadingPlaceholder,
+})
 
 export default function PlayerClientWrapper({
   accessToken,
@@ -20,7 +35,7 @@ export default function PlayerClientWrapper({
   hideAppChrome?: boolean
 }) {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PlayerClientLoadingPlaceholder />}>
       <PlayerClient
         accessToken={accessToken}
         guideDemo={guideDemo}

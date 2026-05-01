@@ -204,12 +204,13 @@ interface CurrentMovie {
  * (At 5, the visible queue could barely exceed one batch before capping—felt too short for niche channels.)
  */
 const LLM_BATCH_SIZE = 7;
-/** Max concurrent LLM fetches. With daisy-chaining, this many batches run until HIGH_WATER_MARK. */
+/** Max concurrent in-flight replenish requests at once. */
 const MAX_REPLENISH_IN_FLIGHT = 3;
 /**
- * Max prefetch depth before daisy-chaining pauses. ~3 full batches of LLM_BATCH_SIZE.
+ * Only start (or chain) LLM replenish calls while prefetch has fewer than this many titles —
+ * excludes the visible card so lists stay fresh and queues don’t balloon to full batches repeatedly.
  */
-const HIGH_WATER_MARK = 21;
+const PREFETCH_REFILL_THRESHOLD = 3;
 
 /**
  * Rotating lenses that force the LLM to explore different corners of cinema on each batch.
@@ -681,7 +682,7 @@ const LlmPrefetchStatusBar = memo(function LlmPrefetchStatusBar({
               {" "}
               — queue&nbsp;<span className="tabular-nums">{queueLength}</span> title
               {queueLength === 1 ? "" : "s"}
-              {queueLength < HIGH_WATER_MARK ? " · refilling in background when needed" : ""}
+              {queueLength < PREFETCH_REFILL_THRESHOLD ? " · refilling in background when needed" : ""}
             </span>
           </>
         )}
@@ -2220,14 +2221,14 @@ export default function Home() {
     return null;
   }, []);
 
-  // LLM round-trip. Daisy-chains: after each batch completes, immediately starts another
-  // if the queue is below HIGH_WATER_MARK, so the queue is continuously filled.
+  // LLM round-trip. Daisy-chains another batch while under PREFETCH_REFILL_THRESHOLD unless stuck on dupes.
   const replenish = useCallback(async (
     opts: { mediaType: string; llm: string },
     extraRetrySkips: string[] = []
   ): Promise<Set<string>> => {
     /** Career mode walks a fixed TMDB filmography; do not mix in channel LLM picks. */
     if (careerModeRef.current) return new Set();
+    if (prefetchRef.current.length >= PREFETCH_REFILL_THRESHOLD) return new Set();
     if (replenishGenInFlight.current >= MAX_REPLENISH_IN_FLIGHT) return new Set();
     replenishOptsRef.current = opts;
 
@@ -2291,14 +2292,9 @@ export default function Home() {
       replenishInFlight.current--;
       if (genAtStart === replenishGenRef.current) replenishGenInFlight.current = Math.max(0, replenishGenInFlight.current - 1);
       setLlmPrefetchInFlight((n) => Math.max(0, n - 1));
-      // Daisy-chain: keep filling until high-water mark, but stop if recent batches are all dupes.
+      // Daisy-chain — replenish() no-ops if queue is already at/above refill threshold or at concurrency cap.
       // zeroYieldStreak >= 3 means the LLM is stuck — no point hammering it further.
-      if (
-        genAtStart === replenishGenRef.current &&
-        prefetchRef.current.length < HIGH_WATER_MARK &&
-        replenishGenInFlight.current < MAX_REPLENISH_IN_FLIGHT &&
-        zeroYieldStreakRef.current < 3
-      ) {
+      if (genAtStart === replenishGenRef.current && zeroYieldStreakRef.current < 3) {
         replenish(replenishOptsRef.current);
       }
     }
@@ -2332,8 +2328,7 @@ export default function Home() {
         persistPrefetchQueue();
         setCurrent(next);
         setInitialLoading(false);
-        // Always keep MAX_REPLENISH_IN_FLIGHT batches running so the queue never drains while waiting.
-        if (replenishInFlight.current < MAX_REPLENISH_IN_FLIGHT) replenish(opts);
+        replenish(opts);
         return;
       }
       persistPrefetchQueue();
@@ -2372,7 +2367,7 @@ export default function Home() {
           setCurrent(candidate);
           setInitialLoading(false);
           setFetchError(null);
-          if (replenishInFlight.current < MAX_REPLENISH_IN_FLIGHT) void replenish(opts);
+          void replenish(opts);
           return;
         }
         persistPrefetchQueue();
@@ -2418,13 +2413,7 @@ export default function Home() {
       if (index < 0 || index >= q.length) return;
       prefetchRef.current = q.filter((_, i) => i !== index);
       persistPrefetchQueue();
-      if (
-        prefetchRef.current.length < HIGH_WATER_MARK &&
-        replenishGenInFlight.current < MAX_REPLENISH_IN_FLIGHT &&
-        zeroYieldStreakRef.current < 3
-      ) {
-        replenish({ mediaType, llm });
-      }
+      if (zeroYieldStreakRef.current < 3) replenish({ mediaType, llm });
     },
     [mediaType, llm, replenish, persistPrefetchQueue]
   );
@@ -2444,13 +2433,7 @@ export default function Home() {
       setInitialLoading(false);
       setFetchError(null);
       zeroYieldStreakRef.current = 0;
-      if (
-        prefetchRef.current.length < HIGH_WATER_MARK &&
-        replenishGenInFlight.current < MAX_REPLENISH_IN_FLIGHT &&
-        zeroYieldStreakRef.current < 3
-      ) {
-        replenish({ mediaType, llm });
-      }
+      replenish({ mediaType, llm });
     },
     [mediaType, llm, replenish, persistPrefetchQueue, current]
   );
