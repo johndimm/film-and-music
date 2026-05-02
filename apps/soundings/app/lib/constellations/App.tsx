@@ -55,8 +55,8 @@ type AppProps = {
     /** Soundings: create a new DJ channel seeded from the right-clicked graph node. */
     onNewChannelFromNode?: (node: GraphNode) => void;
     /**
-     * Restored graph from player embed (session handoff) — avoids re-running searches.
-     * Only used on full-screen mount; not for embedded mode.
+     * Restored graph from session handoff (embed → full screen, or full screen → player embed).
+     * Skips bootstrap searches until hydrated, then merges with normal now-playing bridge.
      */
     initialSession?: ConstellationsSessionHandoffV1 | null;
     /**
@@ -407,6 +407,12 @@ const App: React.FC<AppProps> = ({
             handoffSelectionRestored.current = true;
         }
     }, [initialSession, nodes, setSelectedNode]);
+
+    useEffect(() => {
+        if (!initialSession) return;
+        if (!nodes.length) return;
+        skipPlayerBootstrapRef.current = false;
+    }, [initialSession, nodes.length]);
 
     useEffect(() => {
         if (!embedded) {

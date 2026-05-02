@@ -6,7 +6,10 @@ import {
   newChannelFromGraphNode,
   useFullPageConstellationsHost,
 } from '@/app/lib/constellations/host'
-import { takeEmbedHandoffForInitialState } from '@/app/lib/constellations/sessionHandoff'
+import {
+  persistWindowConstellationsHandoffToSession,
+  takeEmbedHandoffForInitialState,
+} from '@/app/lib/constellations/sessionHandoff'
 import type { GraphNode } from '@/app/lib/constellations/types'
 import { readNowPlayingSnapshot } from '@/app/lib/nowPlayingBridge'
 import { soundingsStorage } from '@/app/lib/platform'
@@ -36,6 +39,9 @@ export default function ConstellationsClient() {
     <FullPageConstellations
       layout="fixed-overlay"
       closeHref="/player"
+      onClose={() => {
+        persistWindowConstellationsHandoffToSession()
+      }}
       externalSearch={externalSearch}
       onExternalSearchConsumed={() => {}}
       autoExpandMatchTitles={autoExpandTitles}

@@ -409,6 +409,12 @@ const App: React.FC<AppProps> = ({
     }, [initialSession, nodes, setSelectedNode]);
 
     useEffect(() => {
+        if (!initialSession) return;
+        if (!nodes.length) return;
+        skipPlayerBootstrapRef.current = false;
+    }, [initialSession, nodes.length]);
+
+    useEffect(() => {
         if (!embedded) {
             return undefined;
         }

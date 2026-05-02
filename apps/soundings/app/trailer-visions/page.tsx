@@ -67,6 +67,19 @@ interface YTPlayer {
   stopVideo?(): void;
 }
 
+/** Guards JS API calls: `YT.Player` is a stub until the iframe attaches; callers must also avoid detached iframes (Strict Mode / Fast Refresh). */
+function ytPlayerIframeConnected(p: YTPlayer | null | undefined): p is YTPlayer {
+  if (!p) return false;
+  const gf = (p as unknown as { getIframe?: () => HTMLIFrameElement | null }).getIframe;
+  if (typeof gf !== "function") return false;
+  try {
+    const el = gf();
+    return Boolean(el?.isConnected);
+  } catch {
+    return false;
+  }
+}
+
 // Loads https://www.youtube.com/iframe_api once; resolves when YT.Player is available.
 let _ytApiLoaded = false;
 let _ytApiReady = false;
@@ -786,7 +799,7 @@ const WATCH_PROGRESS_AUTO_RATING =
   process.env.NEXT_PUBLIC_WATCH_PROGRESS_AUTO_RATING === "true";
 
 // ── TrailerPlayer ─────────────────────────────────────────────────────────────
-/** One iframe per mount; swap trailers with loadVideoById so rapid card changes don't cancel init (black player). */
+/** One YT.Player host per component; swap trailers with loadVideoById (see player lifecycle comment in useEffect). */
 const TRAILER_RESUME_MIN = 0.02;
 
 const TrailerPlayer = memo(function TrailerPlayer({
@@ -803,6 +816,12 @@ const TrailerPlayer = memo(function TrailerPlayer({
   resumeFromFraction?: number;
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  /** Host div for YT.Player — reused across React Strict Mode’s mount → fake-unmount → remount. */
+  const hostDivRef = useRef<HTMLDivElement | null>(null);
+  /** Prevents binding two YT.Player instances to the same host (breaks postMessage / shows black video). */
+  const ytHostBoundRef = useRef(false);
+  /** False while an effect cleanup runs (Strict Mode); gates state callbacks and deferred `new YT.Player`, not onReady. */
+  const effectActiveRef = useRef(true);
   const playerRef = useRef<YTPlayer | null>(null);
   const videoIdRef = useRef(videoId);
   const onProgressRef = useRef(onProgress);
@@ -840,23 +859,58 @@ const TrailerPlayer = memo(function TrailerPlayer({
   };
 
   useEffect(() => {
-    const mountEl = document.createElement("div");
-    mountEl.style.position = "absolute";
-    mountEl.style.inset = "0";
-    mountEl.style.backgroundColor = "#000";
-    wrapperRef.current?.appendChild(mountEl);
+    effectActiveRef.current = true;
+    const w = wrapperRef.current;
+    if (!w) return;
 
-    let cancelled = false;
-    let playerInstance: YTPlayer | null = null;
+    const attachProgressPoll = () => {
+      const wrap = wrapperRef.current as HTMLDivElement & { _poll?: number } | null;
+      if (!wrap) return;
+      if (typeof wrap._poll === "number") window.clearInterval(wrap._poll);
+      wrap._poll = window.setInterval(() => {
+        try {
+          const p = playerRef.current;
+          if (!ytPlayerIframeConnected(p)) return;
+          const dur = p.getDuration();
+          if (dur > 0) onProgressRef.current?.(Math.min(p.getCurrentTime() / dur, 1));
+        } catch {
+          /* ignore */
+        }
+      }, 500);
+    };
+
+    let host = hostDivRef.current;
+    if (host && !host.isConnected) {
+      try {
+        playerRef.current?.destroy();
+      } catch {
+        /* ignore */
+      }
+      playerRef.current = null;
+      ytHostBoundRef.current = false;
+      hostDivRef.current = null;
+      host = null;
+    }
+    if (!host) {
+      host = document.createElement("div");
+      host.style.position = "absolute";
+      host.style.inset = "0";
+      host.style.backgroundColor = "#000";
+      w.appendChild(host);
+      hostDivRef.current = host;
+    }
 
     loadYouTubeApi().then(() => {
-      if (cancelled || !mountEl.isConnected) return;
+      if (!effectActiveRef.current || !host!.isConnected) return;
+      if (ytHostBoundRef.current) return;
+      ytHostBoundRef.current = true;
+
       // Must match the parent page origin (including http://localhost:PORT) so the JS API
       // postMessage targets line up. Omitting it on localhost often triggers www-widgetapi errors.
       const origin =
         typeof window !== "undefined" ? window.location.origin : undefined;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      playerInstance = new (window.YT as any).Player(mountEl, {
+      new (window.YT as any).Player(host!, {
         videoId: videoIdRef.current,
         width: "100%",
         height: "100%",
@@ -874,7 +928,7 @@ const TrailerPlayer = memo(function TrailerPlayer({
         },
         events: {
           onStateChange: (e: { data: number; target: YTPlayer }) => {
-            if (cancelled) return;
+            if (!effectActiveRef.current) return;
             const Y = window.YT;
             if (!Y?.PlayerState) return;
             const s = e.data;
@@ -883,14 +937,15 @@ const TrailerPlayer = memo(function TrailerPlayer({
             }
           },
           onError: () => {
-            if (cancelled) return;
+            if (!effectActiveRef.current) return;
             const id = videoIdRef.current;
             if (errorReportedForVideoIdRef.current === id) return;
             errorReportedForVideoIdRef.current = id;
             onPlaybackErrorRef.current?.();
           },
           onReady: (e: { target: YTPlayer }) => {
-            if (cancelled) return;
+            // Always wire `playerRef`; do not gate on effectActiveRef (Strict cleanup can flip it
+            // before this async callback runs, leaving the player orphaned with no ref).
             playerRef.current = e.target;
             if (_lastVolume !== null) e.target.setVolume(_lastVolume);
             e.target.unMute();
@@ -901,46 +956,36 @@ const TrailerPlayer = memo(function TrailerPlayer({
             }
             // Resume after a new load: state changes may be flaky on some devices.
             window.setTimeout(() => tryApplyResume(e.target), 500);
-            const poll = window.setInterval(() => {
-              try {
-                const p = playerRef.current;
-                if (!p) return;
-                const dur = p.getDuration();
-                if (dur > 0) onProgressRef.current?.(Math.min(p.getCurrentTime() / dur, 1));
-              } catch { /* ignore */ }
-            }, 500);
-            const origCancel = cancelled;
-            void origCancel; // suppress unused warning
-            // Attach cleanup via the outer cancelled flag approach — store interval on wrapperRef
-            (wrapperRef.current as HTMLDivElement & { _poll?: number })._poll = poll;
+            attachProgressPoll();
           },
         },
       });
     });
 
+    // Strict Mode: first effect’s cleanup clears _poll; onReady does not run again for the same player.
+    if (ytHostBoundRef.current && playerRef.current) attachProgressPoll();
+
     return () => {
-      cancelled = true;
+      effectActiveRef.current = false;
       const poll = (wrapperRef.current as HTMLDivElement & { _poll?: number } | null)?._poll;
       if (poll) window.clearInterval(poll);
       try {
-        const p = playerRef.current ?? playerInstance;
+        const p = playerRef.current;
         if (p && !p.isMuted()) {
           _lastVolume = p.getVolume();
         }
-        silenceYouTubePlayer(p);
-        p?.destroy();
+        // Pause only — never stopVideo/destroy here. stopVideo blanks the embed; destroy + DOM
+        // removal during Strict Mode’s fake-unmount breaks the IFrame API (black player + postMessage origin spam).
+        pauseYouTubePlayer(p);
       } catch {
         /* ignore */
       }
-      playerRef.current = null;
-      playerInstance = null;
-      if (mountEl.isConnected) mountEl.remove();
     };
   }, []);
 
   useEffect(() => {
     const p = playerRef.current;
-    if (!p) return;
+    if (!ytPlayerIframeConnected(p)) return;
     try {
       p.loadVideoById(videoId);
     } catch {
@@ -953,7 +998,7 @@ const TrailerPlayer = memo(function TrailerPlayer({
     const onVisibility = () => {
       try {
         const p = playerRef.current;
-        if (!p) return;
+        if (!ytPlayerIframeConnected(p)) return;
         if (document.visibilityState === "hidden") {
           pauseYouTubePlayer(p);
           return;
@@ -991,7 +1036,7 @@ const TrailerPlayer = memo(function TrailerPlayer({
         const re = wrapperRef.current;
         if (fs && re && (fs === re || fs.contains(re))) return;
         const p = playerRef.current;
-        if (!p) return;
+        if (!ytPlayerIframeConnected(p)) return;
         const state = p.getPlayerState?.();
         const Y = window.YT;
         const playing = Y?.PlayerState?.PLAYING ?? 1;

@@ -4,8 +4,15 @@ import dynamic from 'next/dynamic'
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import '@/app/lib/constellations/index.css'
-import { SOUNDINGS_CONSTELLATIONS_HANDOFF_KEY } from '@/app/lib/constellations/sessionHandoff'
+import {
+  invalidateEmbedHandoffMemory,
+  persistWindowConstellationsHandoffToSession,
+  takeEmbedHandoffForInitialState,
+} from '@/app/lib/constellations/sessionHandoff'
 import type { GraphNode } from '@/app/lib/constellations/types'
+import {
+  useFullPageConstellationsHost,
+} from '@/app/lib/constellations/useFullPageConstellationsHost'
 import { readNowPlayingSnapshot } from '@/app/lib/nowPlayingBridge'
 
 const ConstellationsApp = dynamic(() => import('@/app/lib/constellations/host').then(m => m.App), { ssr: false })
@@ -18,57 +25,27 @@ function PlayerConstellationsInner({
   const sp = useSearchParams()
   const qParam = (sp.get('q') ?? '').trim()
   const expandParam = (sp.get('expand') ?? '').trim()
-
-  const [hydrated, setHydrated] = useState(false)
-  const [npRev, setNpRev] = useState(0)
-  const [externalSearch, setExternalSearch] = useState<{ term: string; id: string | number } | null>(null)
-  const [autoExpandTitles, setAutoExpandTitles] = useState<string[]>([])
-  const [nowPlayingKey, setNowPlayingKey] = useState<string | null>(null)
+  const [embedReturnHandoff] = useState(() => takeEmbedHandoffForInitialState())
 
   useEffect(() => {
-    setHydrated(true)
-  }, [])
+    if (!embedReturnHandoff) return undefined
+    // Defer invalidation past React StrictMode’s synchronous unmount/remount so the remount still
+    // reads `embedHandoffMem`; clear timeout on teardown so Strict cleanup does not wipe early.
+    const t = window.setTimeout(() => {
+      invalidateEmbedHandoffMemory()
+    }, 0)
+    return () => window.clearTimeout(t)
+  }, [embedReturnHandoff])
 
-  useEffect(() => {
-    const bump = () => setNpRev((n) => n + 1)
-    window.addEventListener('soundings-now-playing', bump)
-    return () => window.removeEventListener('soundings-now-playing', bump)
-  }, [])
+  const { ready, externalSearch, autoExpandTitles, nowPlayingKey } = useFullPageConstellationsHost({
+    qParam,
+    expandParam,
+    skipUrlAndPlayerBridge: false,
+    getPlayerSnapshot: readNowPlayingSnapshot,
+    nowPlayingBumperEvent: 'soundings-now-playing',
+  })
 
-  useEffect(() => {
-    if (!hydrated) return
-    const extra = expandParam
-      ? expandParam
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : []
-    const snap = readNowPlayingSnapshot()
-    const album = snap?.album?.trim()
-    const track = snap?.track?.trim()
-    // Album first so the graph matches “album” / composite work nodes, not a song title
-    // that may not exist as a node (e.g. track “Move” vs album “Birth of the Cool”).
-    const mergedExpand = [...extra, ...(album ? [album] : []), ...(track ? [track] : [])]
-    if (album || track) {
-      setNowPlayingKey(`${npRev}::${album || ''}::${track || ''}`)
-    } else {
-      setNowPlayingKey(null)
-    }
-
-    if (qParam) {
-      setExternalSearch(null)
-    } else if (snap?.artist?.trim()) {
-      const t = snap.artist.trim()
-      // Stable id so Constellations’ externalSearch effect does not re-fire when only the
-      // now-playing bridge updates (e.g. progress ticks) or dimensions resize.
-      setExternalSearch({ term: t, id: `np:${t.toLowerCase()}` })
-    } else {
-      setExternalSearch(null)
-    }
-    setAutoExpandTitles(mergedExpand)
-  }, [hydrated, qParam, expandParam, npRev])
-
-  if (!hydrated) {
+  if (!ready) {
     return (
       <div className="w-full h-[min(75vh,900px)] min-h-[320px] bg-slate-950 flex items-center justify-center text-slate-400 text-sm">
         Loading graph…
@@ -88,6 +65,7 @@ function PlayerConstellationsInner({
         onExternalSearchConsumed={() => {}}
         autoExpandMatchTitles={autoExpandTitles}
         nowPlayingKey={nowPlayingKey}
+        initialSession={embedReturnHandoff}
         onNewChannelFromNode={onNewChannelFromNode}
       />
     </div>
@@ -106,28 +84,7 @@ export default function PlayerConstellationsEmbed({
   const router = useRouter()
 
   const goFullScreen = () => {
-    try {
-      const fn = (window as { __soundingsConstellationsGetHandoff?: () => unknown })
-        .__soundingsConstellationsGetHandoff
-      if (typeof fn === 'function') {
-        const payload = fn()
-        if (payload && typeof payload === 'object' && (payload as { v?: number }).v === 1) {
-          const g = (payload as { graph?: { nodes?: unknown[] } }).graph
-          if (g?.nodes?.length) {
-            try {
-              sessionStorage.setItem(
-                SOUNDINGS_CONSTELLATIONS_HANDOFF_KEY,
-                JSON.stringify(payload)
-              )
-            } catch (e) {
-              console.warn('[constellations] handoff too large for sessionStorage', e)
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[constellations] handoff', e)
-    }
+    persistWindowConstellationsHandoffToSession()
     router.push('/constellations')
   }
 

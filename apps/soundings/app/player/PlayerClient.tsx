@@ -896,6 +896,8 @@ export default function PlayerClient({
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
   const [editingChannelName, setEditingChannelName] = useState('')
   const [channelSearchText, setChannelSearchText] = useState('')
+  /** After creating a channel from the top field, the composer stays empty; skip blur until the user types so we don’t wipe seeded `notes`. */
+  const suppressNotesComposerBlurRef = useRef(false)
   const activeTabRef = useRef<HTMLDivElement | null>(null)
   const [careerMode, setCareerMode] = useState<MusicCareerMode | null>(null)
   const careerModeRef = useRef<MusicCareerMode | null>(null)
@@ -1198,7 +1200,7 @@ export default function PlayerClient({
     })
   }, [])
 
-  const loadChannelIntoState = useCallback((ch: Channel) => {
+  const loadChannelIntoState = useCallback((ch: Channel, opts?: { blankTopNotesComposer?: boolean }) => {
     const restoredQueue = [...(ch.queue ?? [])]
     const restoredCurrent = ch.currentCard ?? null
     const nextCurrent = restoredCurrent ?? restoredQueue.shift() ?? null
@@ -1237,7 +1239,16 @@ export default function PlayerClient({
     const g = ch.genres ?? []; setGenres(g); genresRef.current = g
     const gt = ch.genreText ?? ''; setGenreText(gt); genreTextRef.current = gt
     const tp = ch.timePeriods?.length ? ch.timePeriods.join(' and ') : (ch.timePeriod ?? ''); setTimePeriod(tp); timePeriodRef.current = tp
-    const n = ch.notes ?? ''; setNotes(n); notesRef.current = n; setChannelSearchText(n)
+    const n = ch.notes ?? ''
+    setNotes(n)
+    notesRef.current = n
+    if (opts?.blankTopNotesComposer) {
+      setChannelSearchText('')
+      suppressNotesComposerBlurRef.current = true
+    } else {
+      setChannelSearchText(n)
+      suppressNotesComposerBlurRef.current = false
+    }
     const r = ch.regions ?? []; setRegions(r); regionsRef.current = r
     const ar = ch.artists ?? []; setArtists(ar); artistsRef.current = ar
     const at = ch.artistText ?? ''; setArtistText(at); artistTextRef.current = at
@@ -1472,7 +1483,7 @@ export default function PlayerClient({
       setChannels(updated)
       channelsRef.current = updated
       saveChannels(updated)
-      loadChannelIntoState(fresh)
+      loadChannelIntoState(fresh, { blankTopNotesComposer: true })
       if (!isGuideDemo && playerRef.current && hadCurrent && !willPlay) {
         pendingFadeInRef.current = true
       }
@@ -4971,9 +4982,14 @@ export default function PlayerClient({
           <div className="relative flex-1 min-w-0">
             <textarea
               value={channelSearchText}
-              onChange={e => setChannelSearchText(e.target.value)}
+              onChange={e => {
+                suppressNotesComposerBlurRef.current = false
+                setChannelSearchText(e.target.value)
+              }}
               onBlur={e => {
                 const v = e.currentTarget.value
+                if (suppressNotesComposerBlurRef.current && !v.trim()) return
+                suppressNotesComposerBlurRef.current = false
                 const id = activeChannelIdRef.current
                 const ch = channelsRef.current.find(c => c.id === id)
                 if (!id || !ch) return
