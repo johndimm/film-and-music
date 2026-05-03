@@ -397,7 +397,7 @@ export default function ChannelHistoryPage() {
                                   localStorage.setItem(RECONSIDER_KEY, JSON.stringify({
                                     title: e.title, type: e.type, year: null, director: null,
                                     predictedRating: e.predictedRating, actors: [], plot: "",
-                                    posterUrl: e.posterUrl ?? null, trailerKey: null, rtScore: e.rtScore ?? null,
+                                    posterUrl: e.posterUrl ?? null, trailerKey: e.trailerKey ?? null, rtScore: e.rtScore ?? null,
                                   }));
                                   router.push("/trailer-visions");
                                 }}

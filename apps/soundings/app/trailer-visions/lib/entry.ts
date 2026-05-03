@@ -7,6 +7,7 @@ export interface RatingEntry {
   rtScore?: string | null;
   channelId?: string;
   posterUrl?: string | null;
+  trailerKey?: string | null;
   ratingMode?: "seen" | "unseen";
   /** ISO timestamp when this red-star rating was saved (optional for older rows). */
   ratedAt?: string;

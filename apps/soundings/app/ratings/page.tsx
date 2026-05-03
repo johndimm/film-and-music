@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import AppHeader from '@/app/components/AppHeader'
 import MusicMap from '@/app/player/MusicMap'
@@ -44,6 +44,14 @@ function historyEntryToCardState(entry: HistoryEntry): CardState | null {
     uri: `spotify:track:${spotifyId}`,
   }
   return { track, reason: 'From History', coords: entry.coords }
+}
+
+function historyEntryExternalUrl(entry: HistoryEntry, spotifyId: string | null | undefined): string | null {
+  if (entry.source === 'youtube') {
+    const id = (entry.uri ?? '').trim()
+    return id ? `https://www.youtube.com/watch?v=${encodeURIComponent(id)}` : null
+  }
+  return spotifyId ? `https://open.spotify.com/track/${spotifyId}` : null
 }
 
 const CHANNELS_STORAGE_KEY = soundingsStorage.channels
@@ -139,6 +147,15 @@ export default function RatingsPage() {
     } catch {}
   }
 
+  const enqueueAndGoToPlayer = useCallback(
+    (cards: CardState[]) => {
+      if (cards.length === 0) return
+      window.dispatchEvent(new CustomEvent(soundingsEventNames.enqueue, { detail: { cards } }))
+      router.push('/player')
+    },
+    [router]
+  )
+
   const encodeSelectionKey = (channelId: string, index: number) => `${channelId}::${index}`
 
   const visibleChannels = channelFilter
@@ -207,9 +224,8 @@ export default function RatingsPage() {
       .map(fe => historyEntryToCardState(fe.entry))
       .filter((c): c is CardState => c !== null)
     if (ordered.length === 0) return
-    window.dispatchEvent(new CustomEvent(soundingsEventNames.enqueue, { detail: { cards: ordered } }))
+    enqueueAndGoToPlayer(ordered)
     setSelectedKeys(new Set())
-    router.push('/player')
   }
 
   const handleRemoveSelectedKeys = () => {
@@ -380,6 +396,7 @@ export default function RatingsPage() {
             const isSelected = selectedKeys.has(selKey)
             const playableTrackId = normalizeSpotifyTrackId(entry.uri ?? undefined)
             const canOpen = Boolean(playableTrackId) || entry.source === 'youtube'
+            const externalUrl = historyEntryExternalUrl(entry, playableTrackId)
             return (
               <div
                 key={`${channelId}-${globalIndex}-${i}`}
@@ -393,16 +410,17 @@ export default function RatingsPage() {
                   onChange={() => toggleSelect(channelId, globalIndex)}
                   className="flex-shrink-0 accent-zinc-400 cursor-pointer"
                 />
-                <a
-                  href={
-                    entry.source === 'youtube'
-                      ? `https://www.youtube.com/watch?v=${entry.uri}`
-                      : `https://open.spotify.com/track/${playableTrackId ?? ''}`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  disabled={!canOpen}
+                  onClick={() => {
+                    const card = historyEntryToCardState(entry)
+                    if (card) enqueueAndGoToPlayer([card])
+                  }}
+                  title={canOpen ? 'Play in Soundings' : undefined}
+                  aria-label={canOpen ? `Play ${entry.track} in Soundings` : undefined}
                   className={`flex-1 min-w-0 flex items-center gap-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl px-2 py-1 text-left transition-colors ${
-                    !canOpen ? 'pointer-events-none' : ''
+                    !canOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                   }`}
                 >
                   {entry.albumArt ? (
@@ -419,7 +437,19 @@ export default function RatingsPage() {
                     <p className="text-black text-xs font-medium truncate">{entry.track}</p>
                     <p className="text-zinc-500 text-xs truncate">{entry.artist}</p>
                   </div>
-                </a>
+                  <span className="text-zinc-400 text-xs flex-shrink-0 pr-1">▶</span>
+                </button>
+                {externalUrl ? (
+                  <a
+                    href={externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-zinc-500 hover:text-zinc-900 underline decoration-zinc-300"
+                    title={entry.source === 'youtube' ? 'Open on YouTube' : 'Open on Spotify'}
+                  >
+                    {entry.source === 'youtube' ? 'YouTube' : 'Spotify'}
+                  </a>
+                ) : null}
                 {!isChannelView && (
                   <span className="text-xs text-zinc-400 flex-shrink-0 hidden sm:block max-w-[80px] truncate" title={channelName}>
                     {channelName}

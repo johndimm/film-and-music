@@ -999,6 +999,11 @@ export default function PlayerClient({
     } catch {}
   }, [])
   const pendingFadeInRef = useRef(false)
+  /**
+   * After creating an empty channel, we keep the prior track audible until the first DJ card lands.
+   * Snapshots must not persist that holdover onto the new channel object in storage.
+   */
+  const newChannelRetainPlaybackRef = useRef<{ channelId: string; holdKey: string } | null>(null)
   const channelSwitchingRef = useRef(false)
   const deviceIdRef = useRef<string | null>(null)
   const lastPlayedUriRef = useRef<string | null>(null)
@@ -1171,6 +1176,31 @@ export default function PlayerClient({
       const autoName = deriveChannelName(cardHistoryRef.current, priorProfileRef.current)
       const name = ch.isAutoNamed && autoName ? autoName : ch.name
       const cur = currentCardRef.current
+      const retain = newChannelRetainPlaybackRef.current
+      if (retain && ch.id === retain.channelId && cur && trackPlayKey(cur.track) === retain.holdKey) {
+        return {
+          ...ch,
+          name,
+          source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
+          cardHistory: cardHistoryRef.current,
+          sessionHistory: sessionHistoryRef.current,
+          profile: priorProfileRef.current,
+          currentCard: null,
+          queue: [],
+          genres: genresRef.current,
+          genreText: genreTextRef.current,
+          timePeriod: timePeriodRef.current,
+          timePeriods: timePeriodRef.current ? timePeriodRef.current.split(' and ').filter(Boolean) : [],
+          notes: notesRef.current,
+          regions: regionsRef.current,
+          artists: artistsRef.current,
+          artistText: artistTextRef.current,
+          popularity: popularityRef.current,
+          discovery: exploreModeRef.current,
+          playbackTrackUri: undefined,
+          playbackPositionMs: undefined,
+        }
+      }
       const dur = durationRef.current
       const uri = cur?.track.uri
       const playbackPositionMs =
@@ -1200,12 +1230,25 @@ export default function PlayerClient({
     })
   }, [])
 
-  const loadChannelIntoState = useCallback((ch: Channel, opts?: { blankTopNotesComposer?: boolean }) => {
+  useEffect(() => {
+    const b = newChannelRetainPlaybackRef.current
+    if (!b || !currentCard) return
+    if (trackPlayKey(currentCard.track) !== b.holdKey) {
+      newChannelRetainPlaybackRef.current = null
+    }
+  }, [currentCard])
+
+  const loadChannelIntoState = useCallback(
+    (ch: Channel, opts?: { blankTopNotesComposer?: boolean; retainEmptyPlaybackHold?: CardState | null }) => {
     const restoredQueue = [...(ch.queue ?? [])]
     const restoredCurrent = ch.currentCard ?? null
+    const hold = opts?.retainEmptyPlaybackHold ?? null
+    const emptyNewChannel = !restoredCurrent && (ch.queue?.length ?? 0) === 0
+    const useRetainPlayback = Boolean(hold) && emptyNewChannel
     const nextCurrent = restoredCurrent ?? restoredQueue.shift() ?? null
 
     if (
+      !useRetainPlayback &&
       nextCurrent &&
       ch.playbackTrackUri === nextCurrent.track.uri &&
       typeof ch.playbackPositionMs === 'number' &&
@@ -1219,8 +1262,18 @@ export default function PlayerClient({
       pendingPlaybackPositionMsRef.current = undefined
     }
 
-    // Stop playback and clear transient state
-    setCurrentCard(nextCurrent); currentCardRef.current = nextCurrent
+    if (useRetainPlayback && hold) {
+      newChannelRetainPlaybackRef.current = {
+        channelId: ch.id,
+        holdKey: trackPlayKey(hold.track),
+      }
+      setCurrentCard(hold)
+      currentCardRef.current = hold
+    } else {
+      newChannelRetainPlaybackRef.current = null
+      setCurrentCard(nextCurrent)
+      currentCardRef.current = nextCurrent
+    }
     setQueue(restoredQueue); queueRef.current = restoredQueue
     setSuggestionBuffer([]); suggestionBufferRef.current = []
     fetchingRef.current = false
@@ -1274,13 +1327,17 @@ export default function PlayerClient({
     committedSettingsRef.current = nextCommitted
     setSettingsDirty(false)
 
-    const nextSource = youtubeOnly ? 'youtube' : (ch.source ?? readSettingsSource())
-    setSource(nextSource)
-    sourceRef.current = nextSource
+    if (!useRetainPlayback) {
+      const nextSource = youtubeOnly ? 'youtube' : (ch.source ?? readSettingsSource())
+      setSource(nextSource)
+      sourceRef.current = nextSource
+    }
 
     setActiveChannelId(ch.id); activeChannelIdRef.current = ch.id
     localStorage.setItem(ACTIVE_CHANNEL_KEY, ch.id)
-  }, [dedupeHistory])
+  },
+    [dedupeHistory, youtubeOnly]
+  )
 
   /** Fade out whatever is playing (YouTube iframe or Spotify Web Playback) before switching channels. */
   const fadeOutCurrentPlayback = useCallback(async () => {
@@ -1344,9 +1401,11 @@ export default function PlayerClient({
     }
     const willPlay = peekNextCard(fresh) != null
     const hadCurrent = currentCardRef.current != null
+    const holdCard = !willPlay && hadCurrent ? currentCardRef.current : null
     channelSwitchingRef.current = true
     try {
-      if (!isGuideDemo && hadCurrent) {
+      if (!isGuideDemo && hadCurrent && willPlay) {
+        pendingFadeInRef.current = true
         await fadeOutCurrentPlayback()
       }
       const saved = snapshotCurrentChannel()
@@ -1354,13 +1413,7 @@ export default function PlayerClient({
       setChannels(updated)
       channelsRef.current = updated
       saveChannels(updated)
-      loadChannelIntoState(fresh)
-      // Empty new channel: stay paused and quiet until the user picks DJ settings and playback starts again.
-      // Do not setVolume(1) here — Spotify would resume the previous track at full volume.
-      // Do set pending fade-in so the first play on this channel runs fade 0→1 (volume was left at 0 after fade-out).
-      if (!isGuideDemo && playerRef.current && hadCurrent && !willPlay) {
-        pendingFadeInRef.current = true
-      }
+      loadChannelIntoState(fresh, holdCard ? { retainEmptyPlaybackHold: holdCard } : undefined)
     } finally {
       channelSwitchingRef.current = false
     }
@@ -1473,9 +1526,11 @@ export default function PlayerClient({
     }
     const willPlay = peekNextCard(fresh) != null
     const hadCurrent = currentCardRef.current != null
+    const holdCard = !willPlay && hadCurrent ? currentCardRef.current : null
     channelSwitchingRef.current = true
     try {
-      if (!isGuideDemo && hadCurrent) {
+      if (!isGuideDemo && hadCurrent && willPlay) {
+        pendingFadeInRef.current = true
         await fadeOutCurrentPlayback()
       }
       const saved = snapshotCurrentChannel()
@@ -1483,10 +1538,10 @@ export default function PlayerClient({
       setChannels(updated)
       channelsRef.current = updated
       saveChannels(updated)
-      loadChannelIntoState(fresh, { blankTopNotesComposer: true })
-      if (!isGuideDemo && playerRef.current && hadCurrent && !willPlay) {
-        pendingFadeInRef.current = true
-      }
+      loadChannelIntoState(fresh, {
+        blankTopNotesComposer: true,
+        ...(holdCard ? { retainEmptyPlaybackHold: holdCard } : {}),
+      })
     } finally {
       channelSwitchingRef.current = false
     }
@@ -4996,7 +5051,7 @@ export default function PlayerClient({
                 const saved = ch.notes ?? ''
                 if (v !== saved) updateCurrentChannelNotes(v)
               }}
-              placeholder="Describe this channel — genres, artists, era, mood…"
+              placeholder="Optional notes — leave blank; the DJ learns from your ratings"
               rows={1}
               className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 pr-7 text-xs text-white placeholder-zinc-500 resize-y focus:outline-none focus:border-zinc-500"
             />

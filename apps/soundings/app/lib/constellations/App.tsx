@@ -19,7 +19,7 @@ import { useKioskMode } from './hooks/useKioskMode';
 import { useExpansion } from './hooks/useExpansion';
 import { useSearchHandlers } from './hooks/useSearchHandlers';
 import { useGraphActions } from './hooks/useGraphActions';
-import { buildHandoffFromLiveState, type ConstellationsSessionHandoffV1 } from './sessionHandoff';
+import { buildHandoffFromLiveState, saveConstellationsToLocalStorage, type ConstellationsSessionHandoffV1 } from './sessionHandoff';
 
 const PeopleBrowserSidebar = lazy(() => import('./components/PeopleBrowserSidebar'));
 
@@ -70,6 +70,8 @@ type AppProps = {
      * viewport-anchored layout + classic max-heights; keeps blur/shadows aligned to the window edge.
      */
     useViewportForPanels?: boolean;
+    /** When set, ControlPanel shows a link to the graph settings page. */
+    settingsHref?: string;
 };
 
 const ExtensionControls: React.FC<{
@@ -180,6 +182,7 @@ const App: React.FC<AppProps> = ({
     initialSession: initialSessionProp = null,
     hostNavOffsetPx = 0,
     useViewportForPanels = false,
+    settingsHref,
 }) => {
     const initialSession = initialSessionProp && initialSessionProp.graph?.nodes?.length
         ? initialSessionProp
@@ -457,6 +460,24 @@ const App: React.FC<AppProps> = ({
         selectedNode
     ]);
 
+    // Auto-save graph state to localStorage so it survives page reloads
+    useEffect(() => {
+        if (!embedded || !graphData.nodes.length) return;
+        const timer = setTimeout(() => {
+            try {
+                const payload = buildHandoffFromLiveState({
+                    graph: graphDataRef.current,
+                    exploreTerm, pathStart, pathEnd, searchMode,
+                    isCompact, isTimelineMode, isTextOnly, searchId,
+                    lockedPair, pathNodeIds, selectedNodeId: selectedNode?.id
+                });
+                saveConstellationsToLocalStorage(payload);
+            } catch { /* empty */ }
+        }, 1500);
+        return () => clearTimeout(timer);
+    }, [embedded, graphData, exploreTerm, pathStart, pathEnd, searchMode,
+        isCompact, isTimelineMode, isTextOnly, searchId, lockedPair, pathNodeIds, selectedNode]);
+
     const handlePathSearchRef = useRef(handlePathSearch);
     useEffect(() => {
         handlePathSearchRef.current = handlePathSearch;
@@ -672,11 +693,6 @@ const App: React.FC<AppProps> = ({
                         selectedKioskDomainId={selectedKioskDomainId}
                         onSelectKioskDomain={(id) => { setSelectedKioskDomainId(id); setPathStart(''); setPathEnd(''); }}
                         onUpdateKioskDomains={setKioskDomains}
-                        onClear={handleClear}
-                        onClearCache={cacheEnabled ? handleClearCache : undefined}
-                        onToggleHelp={() => setShowHelp(!showHelp)}
-                        showHelp={showHelp}
-                        onExpandAllLeafNodes={handleExpandAllLeafNodes}
                         isProcessing={isProcessing}
                         isCompact={isCompact}
                         onToggleCompact={() => setIsCompact(!isCompact)}
@@ -684,16 +700,8 @@ const App: React.FC<AppProps> = ({
                         onToggleTimeline={() => setIsTimelineMode(!isTimelineMode)}
                         isTextOnly={isTextOnly}
                         onToggleTextOnly={() => setIsTextOnly(!isTextOnly)}
-                        onPrune={handlePrune}
-                        error={error}
-                        onSave={handleSaveGraph}
-                        onLoad={(name) => handleLoadGraph(name, applyGraphData)}
-                        onDeleteGraph={handleDeleteGraph}
-                        onImport={(e) => handleImport(e, applyGraphData)}
-                        savedGraphs={savedGraphs}
-                        helpHover={helpHover}
-                        onHelpHoverChange={setHelpHover}
                         isCollapsed={panelCollapsed}
+                        settingsHref={settingsHref}
                         onSetCollapsed={setPanelCollapsed}
                         onOpenPeopleBrowser={handleOpenPeopleBrowser}
                         offsetTopClass={controlPanelOffsetClass}

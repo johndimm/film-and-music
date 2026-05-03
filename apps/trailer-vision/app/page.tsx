@@ -227,6 +227,7 @@ export interface RatingEntry {
   rtScore?: string | null;
   channelId?: string;
   posterUrl?: string | null;
+  trailerKey?: string | null;
   ratingMode?: "seen" | "unseen";
   /** ISO timestamp when this red-star rating was saved (optional for older rows). */
   ratedAt?: string;
@@ -1029,7 +1030,7 @@ const TrailerPlayer = memo(function TrailerPlayer({
 
   useEffect(() => {
     const p = playerRef.current;
-    if (!ytPlayerIframeConnected(p)) return;
+    if (!p) return;
     try {
       p.loadVideoById(videoId);
     } catch {
@@ -2901,6 +2902,7 @@ export default function Home() {
       rtScore: current.rtScore,
       channelId,
       posterUrl: current.posterUrl,
+      trailerKey: current.trailerKey,
       ratingMode,
       ratedAt: new Date().toISOString(),
     };
@@ -3379,7 +3381,7 @@ export default function Home() {
         <div className="rounded-2xl border border-zinc-800/90 bg-zinc-950/80 p-2 sm:p-2.5">
           <div className="flex flex-row items-center gap-1.5 sm:gap-2">
             <label htmlFor="channel-what-you-want" className="sr-only">
-              Describe a new channel — does not edit the current channel
+              Optional text for a new channel — does not edit the current channel
             </label>
             <div className="relative min-w-0 flex-1">
               <input
@@ -3388,7 +3390,7 @@ export default function Home() {
                 autoComplete="off"
                 value={newChannelDraft}
                 onChange={(e) => setNewChannelDraft(e.target.value.replace(/\r?\n/g, " "))}
-                placeholder="Describe a new channel…"
+                placeholder="Optional seed for a new channel…"
                 className="h-9 w-full rounded-lg border border-zinc-600 bg-zinc-900 py-0 pl-2.5 pr-8 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 sm:h-10 sm:pl-3 sm:pr-9"
               />
               {newChannelDraft.length > 0 && (

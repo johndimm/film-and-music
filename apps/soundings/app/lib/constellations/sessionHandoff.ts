@@ -7,6 +7,7 @@ const getLinkEndpointId = (x: string | number | GraphNode) =>
     typeof x === 'object' && x != null && 'id' in x ? (x as GraphNode).id : (x as string | number);
 
 export const SOUNDINGS_CONSTELLATIONS_HANDOFF_KEY = 'soundings-constellations-handoff-v1';
+export const SOUNDINGS_CONSTELLATIONS_SAVED_KEY = 'soundings-constellations-saved-v1';
 
 export type ConstellationsSessionHandoffV1 = {
     v: 1;
@@ -127,7 +128,35 @@ export function takeEmbedHandoffForInitialState(): ConstellationsSessionHandoffV
         embedHandoffMem = null;
         return null;
     }
+    // Fall back to localStorage saved state (persists across sessions)
+    const saved = loadConstellationsFromLocalStorage();
+    if (saved) {
+        embedHandoffMem = saved;
+        return saved;
+    }
     embedHandoffMem = null;
+    return null;
+}
+
+export function saveConstellationsToLocalStorage(payload: unknown): void {
+    if (typeof window === 'undefined') return;
+    try {
+        const p = payload as { v?: number; graph?: { nodes?: unknown[] } };
+        if (p?.v !== 1 || !p.graph?.nodes?.length) return;
+        localStorage.setItem(SOUNDINGS_CONSTELLATIONS_SAVED_KEY, JSON.stringify(payload));
+    } catch (e) {
+        console.warn('[constellations] localStorage save', e);
+    }
+}
+
+export function loadConstellationsFromLocalStorage(): ConstellationsSessionHandoffV1 | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = localStorage.getItem(SOUNDINGS_CONSTELLATIONS_SAVED_KEY);
+        if (!raw) return null;
+        const p = JSON.parse(raw) as ConstellationsSessionHandoffV1;
+        if (p?.v === 1 && p.graph?.nodes?.length) return p;
+    } catch { /* empty */ }
     return null;
 }
 

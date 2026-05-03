@@ -424,7 +424,7 @@ export const fetchConnections = async (
     const prompt = `${contextualPrompt}${wikiPrompt}${mentionPrompt}${excludePrompt}
       Source Node: ${nodeName} (Type: ${compositeLabel})
       
-      Return ${excludeNodes.length > 0 ? '12-15 NEW' : '10-12 key'} ${atomicLabel} entities (participants, creators, major figures, stars, ingredients, its most famous writers/editors for magazines, etc.) that are fundamental components of this ${compositeLabel}.
+      Return ${excludeNodes.length > 0 ? '6-8 NEW' : '5-6 key'} ${atomicLabel} entities (participants, creators, major figures, stars, ingredients, its most famous writers/editors for magazines, etc.) that are fundamental components of this ${compositeLabel}.
       
       Straying Guardrails:
       ${personOnlyRule}
@@ -556,8 +556,8 @@ export const fetchPersonWorks = async (
 
   const contextPrompt = excludeNodes.length > 0
     ? `The user graph already contains these nodes connected to ${nodeName}${wikiIdStr}: ${JSON.stringify(excludeNodes)}.
-       Return 12-15 NEW significant ${compositeLabel} entities.`
-    : `List 10-12 DISTINCT, significant ${compositeLabel} entities that this ${atomicLabel} "${nodeName}"${wikiIdStr} belongs to or is part of.
+       Return 6-8 NEW significant ${compositeLabel} entities.`
+    : `List 5-6 DISTINCT, significant ${compositeLabel} entities that this ${atomicLabel} "${nodeName}"${wikiIdStr} belongs to or is part of.
        
        CRITICAL: A ${compositeLabel} must be a named organization, team, project, work, recipe, disease, location, or specific historical event/incident.
        DO NOT return descriptive phrases, facts, or achievements.

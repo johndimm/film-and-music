@@ -340,10 +340,10 @@ function ChannelForm({
   return (
     <div className="space-y-4 py-4 border-t border-zinc-100">
       <div className="rounded-2xl border border-indigo-200/60 bg-indigo-50/40 p-3 sm:p-4">
-        <label className="text-xs font-bold text-indigo-900/90 uppercase tracking-wider">What you want</label>
+        <label className="text-xs font-bold text-indigo-900/90 uppercase tracking-wider">Written focus (optional)</label>
         <p className="mt-1 text-xs text-zinc-600 leading-relaxed">
-          Describe the kinds of movies or shows you want in this channel—mood, scope, subgenres, or examples. The app uses this as the main signal to line up
-          the format, genres, time periods, and language in the sections below. This is not an extra &quot;hint&quot;; it drives those choices.
+          Trailer Vision learns your taste from ratings and watch history—no questionnaire required. Use this field only when you want a short written steer
+          for picks in this channel; it helps align format, genres, eras, and language with the filters below.
         </p>
         <textarea
           value={form.freeText}

@@ -5,13 +5,12 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import FilmMusicHomeLink from "@/app/components/FilmMusicHomeLink";
 
-const LINKS = [
+const BASE_LINKS = [
   { href: "/trailer-visions", label: "Player" },
   { href: "/trailer-visions/channels", label: "Channels" },
   { href: "/trailer-visions/history", label: "History" },
   { href: "/trailer-visions/watchlist", label: "Watchlist" },
-  { href: "/trailer-visions/constellations", label: "Constellations" },
-  { href: "/trailer-visions/settings", label: "Settings" },
+  { href: "/trailer-visions/constellations", label: "Graph" },
   { href: "/trailer-visions/logs", label: "Logs" },
   { href: "/trailer-visions/help", label: "Help" },
 ];
@@ -20,6 +19,15 @@ function NavBarInner() {
   const pathname = usePathname();
   const sp = useSearchParams();
   if (sp.get("unifiedEmbed") === "1") return null;
+
+  const settingsHref = pathname.startsWith("/trailer-visions/constellations")
+    ? "/trailer-visions/constellations/settings"
+    : "/trailer-visions/settings";
+
+  const LINKS = [
+    ...BASE_LINKS,
+    { href: settingsHref, label: "Settings" },
+  ];
 
   return (
     <nav className="sticky top-0 z-40 w-full min-w-0 shrink-0 border-b border-zinc-800 bg-black/90 backdrop-blur-sm">

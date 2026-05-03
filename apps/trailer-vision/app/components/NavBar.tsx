@@ -4,13 +4,12 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
-const LINKS = [
+const BASE_LINKS = [
   { href: "/", label: "Player" },
   { href: "/channels", label: "Channels" },
   { href: "/history", label: "History" },
   { href: "/watchlist", label: "Watchlist" },
-  { href: "/constellations", label: "Constellations" },
-  { href: "/settings", label: "Settings" },
+  { href: "/constellations", label: "Graph" },
   { href: "/help", label: "Help" },
 ];
 
@@ -18,6 +17,15 @@ function NavBarInner() {
   const pathname = usePathname();
   const sp = useSearchParams();
   if (sp.get("unifiedEmbed") === "1") return null;
+
+  const settingsHref = pathname.startsWith("/constellations")
+    ? "/constellations/settings"
+    : "/settings";
+
+  const LINKS = [
+    ...BASE_LINKS,
+    { href: settingsHref, label: "Settings" },
+  ];
 
   return (
     <nav className="sticky top-0 z-40 w-full min-w-0 shrink-0 border-b border-zinc-800 bg-black/90 backdrop-blur-sm">

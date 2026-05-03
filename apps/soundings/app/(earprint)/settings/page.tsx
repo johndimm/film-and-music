@@ -297,6 +297,28 @@ export default function SettingsPage() {
 
       <div className="flex-1 p-6 max-w-[800px] mx-auto w-full flex flex-col gap-10">
 
+        {/* Quick links */}
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold">Links</h2>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { href: '/status', label: 'Spotify status' },
+              { href: '/docs', label: 'Docs' },
+              { href: '/journal.html', label: 'Journal' },
+            ].map(({ href, label }) => (
+              <a
+                key={href}
+                href={href}
+                className="text-sm text-zinc-600 hover:text-black underline underline-offset-2"
+              >
+                {label}
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <hr className="border-zinc-200" />
+
         {/* AI Model */}
         <section className="flex flex-col gap-3">
           <div>

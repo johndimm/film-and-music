@@ -13,6 +13,7 @@ import {
 import type { GraphNode } from '@/app/lib/constellations/types'
 import { readNowPlayingSnapshot } from '@/app/lib/nowPlayingBridge'
 import { soundingsStorage } from '@/app/lib/platform'
+import AppHeader from '@/app/components/AppHeader'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 
@@ -38,9 +39,12 @@ export default function ConstellationsClient() {
   return (
     <FullPageConstellations
       layout="fixed-overlay"
-      closeHref="/player"
+      hideHeader
+      chromeSlot={<AppHeader />}
+      settingsHref="/constellations/settings"
       onClose={() => {
         persistWindowConstellationsHandoffToSession()
+        router.push('/player')
       }}
       externalSearch={externalSearch}
       onExternalSearchConsumed={() => {}}

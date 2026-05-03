@@ -32,6 +32,8 @@ export default function TrailerVisionConstellationsClient() {
   return (
     <FullPageConstellations
       layout="below-app-chrome"
+      hideHeader
+      settingsHref="/constellations/settings"
       closeHref="/"
       externalSearch={externalSearch}
       onExternalSearchConsumed={() => {}}

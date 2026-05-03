@@ -42,7 +42,7 @@ export default function SplashAuthCard({
             ) : null}
           </span>
           <span className="mt-1 block text-sm leading-snug text-zinc-300">
-            {spotifySignedIn ? 'Tap to open Soundings' : 'Requires Premium · allowed-email list'}
+            {spotifySignedIn ? 'Tap to open Soundings' : 'Requires Premium · beta access'}
           </span>
         </div>
       </button>

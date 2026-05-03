@@ -70,6 +70,8 @@ type AppProps = {
      * viewport-anchored layout + classic max-heights; keeps blur/shadows aligned to the window edge.
      */
     useViewportForPanels?: boolean;
+    /** When set, ControlPanel shows a link to the graph settings page. */
+    settingsHref?: string;
 };
 
 const ExtensionControls: React.FC<{
@@ -180,6 +182,7 @@ const App: React.FC<AppProps> = ({
     initialSession: initialSessionProp = null,
     hostNavOffsetPx = 0,
     useViewportForPanels = false,
+    settingsHref,
 }) => {
     const initialSession = initialSessionProp && initialSessionProp.graph?.nodes?.length
         ? initialSessionProp
@@ -666,11 +669,6 @@ const App: React.FC<AppProps> = ({
                         selectedKioskDomainId={selectedKioskDomainId}
                         onSelectKioskDomain={(id) => { setSelectedKioskDomainId(id); setPathStart(''); setPathEnd(''); }}
                         onUpdateKioskDomains={setKioskDomains}
-                        onClear={handleClear}
-                        onClearCache={cacheEnabled ? handleClearCache : undefined}
-                        onToggleHelp={() => setShowHelp(!showHelp)}
-                        showHelp={showHelp}
-                        onExpandAllLeafNodes={handleExpandAllLeafNodes}
                         isProcessing={isProcessing}
                         isCompact={isCompact}
                         onToggleCompact={() => setIsCompact(!isCompact)}
@@ -678,16 +676,8 @@ const App: React.FC<AppProps> = ({
                         onToggleTimeline={() => setIsTimelineMode(!isTimelineMode)}
                         isTextOnly={isTextOnly}
                         onToggleTextOnly={() => setIsTextOnly(!isTextOnly)}
-                        onPrune={handlePrune}
-                        error={error}
-                        onSave={handleSaveGraph}
-                        onLoad={(name) => handleLoadGraph(name, applyGraphData)}
-                        onDeleteGraph={handleDeleteGraph}
-                        onImport={(e) => handleImport(e, applyGraphData)}
-                        savedGraphs={savedGraphs}
-                        helpHover={helpHover}
-                        onHelpHoverChange={setHelpHover}
                         isCollapsed={panelCollapsed}
+                        settingsHref={settingsHref}
                         onSetCollapsed={setPanelCollapsed}
                         onOpenPeopleBrowser={handleOpenPeopleBrowser}
                         offsetTopClass={controlPanelOffsetClass}

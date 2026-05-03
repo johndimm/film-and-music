@@ -11,16 +11,18 @@ const PAGE_LINKS = [
   { href: '/channels', label: 'Channels' },
   { href: '/ratings', label: 'History' },
   { href: GRAPH_HREF, label: 'Graph' },
-  { href: '/settings', label: 'Settings' },
 ]
 
-const FILE_LINKS = [{ href: '/guide', label: 'Help' }]
+const RESOURCE_LINKS = [
+  { href: '/guide', label: 'Help' },
+]
 
 const POPOUT_FEATURES = 'popup=yes,width=440,height=860,scrollbars=yes,resizable=yes'
 
 export default function AppHeader() {
   const pathname = usePathname()
-  const isPlayer = pathname.startsWith('/player')
+  const isPlayer = pathname.startsWith('/player') || pathname.startsWith('/constellations')
+  const settingsHref = pathname.startsWith('/constellations') ? '/constellations/settings' : '/settings'
 
   const openPopOutPlayer = () => {
     if (typeof window === 'undefined') return
@@ -64,10 +66,20 @@ export default function AppHeader() {
             {label}
           </Link>
         ))}
+        <Link
+          href={settingsHref}
+          className={`text-xs px-2.5 py-1 rounded transition-colors ${
+            isActive(settingsHref)
+              ? isPlayer ? 'bg-zinc-800 text-white' : 'bg-zinc-100 text-black'
+              : isPlayer ? 'text-zinc-400 hover:text-white hover:bg-zinc-900' : 'text-zinc-500 hover:text-black hover:bg-zinc-100'
+          }`}
+        >
+          Settings
+        </Link>
 
         <span className={`mx-1 ${isPlayer ? 'text-zinc-700' : 'text-zinc-300'}`}>·</span>
 
-        {FILE_LINKS.map(({ href, label }) => (
+        {RESOURCE_LINKS.map(({ href, label }) => (
           <Link
             key={href}
             href={href}

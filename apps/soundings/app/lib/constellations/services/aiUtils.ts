@@ -52,9 +52,23 @@ export const getEnvCacheUrl = (): string => {
   ).trim();
 };
 
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+
+export const CONSTELLATIONS_GEMINI_MODEL_KEY = "soundings-constellations-gemini-model";
+
+export const GEMINI_MODEL_OPTIONS: { value: string; label: string; sub: string }[] = [
+  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", sub: "fast · default" },
+  { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", sub: "smarter · slower" },
+  { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", sub: "older fast" },
+];
 
 export const getEnvGeminiModel = (): string => {
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem(CONSTELLATIONS_GEMINI_MODEL_KEY);
+      if (saved) return saved;
+    } catch { /* empty */ }
+  }
   const m = readBundledEnv("VITE_GEMINI_MODEL").trim();
   return m || DEFAULT_GEMINI_MODEL;
 };
