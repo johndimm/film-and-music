@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Home } from 'lucide-react'
 
 type Variant = 'playerDark' | 'surfaceLight'
 
@@ -7,13 +8,10 @@ const linkClass: Record<Variant, string> = {
   surfaceLight: 'text-zinc-500 hover:text-zinc-800',
 }
 
-/**
- * Subtle breadcrumb-style link to `/` (Film & Music landing) — pair with each product's primary brand title.
- */
 export default function FilmMusicHomeLink({ variant }: { variant: Variant }) {
   return (
-    <Link href="/" title="Film &amp; music — landing page" className={`text-xs shrink-0 transition-colors ${linkClass[variant]}`}>
-      Film &amp; music
+    <Link href="/" title="Home" className={`shrink-0 transition-colors ${linkClass[variant]}`}>
+      <Home size={15} />
     </Link>
   )
 }

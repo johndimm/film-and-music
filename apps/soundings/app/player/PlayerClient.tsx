@@ -637,7 +637,7 @@ function StarRating({
   const isProgressMode = value === null && hovered === null
   const progressStars = (progress ?? 0) * 5
   const display = hovered ?? value ?? (isProgressMode ? progressStars : 0)
-  const fontSize = size === 'lg' ? '2.2rem' : size === 'sm' ? '1.1rem' : '1.6rem'
+  const fontSize = size === 'lg' ? '3rem' : size === 'sm' ? '1.1rem' : '1.6rem'
 
   return (
     <div
@@ -5425,7 +5425,7 @@ export default function PlayerClient({
                 type="button"
                 onClick={() => void careerGo(-1)}
                 disabled={careerLoading || careerMode.currentIndex === 0}
-                className="flex-1 py-3 text-xl font-bold bg-indigo-900 text-white rounded-2xl hover:bg-indigo-800 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 py-2 text-base font-semibold bg-indigo-900 text-white rounded-xl hover:bg-indigo-800 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Prev
               </button>
@@ -5433,7 +5433,7 @@ export default function PlayerClient({
             <button
               onClick={() => careerMode ? void careerGo(1) : advanceWithFade()}
               disabled={careerLoading || (careerMode ? careerMode.currentIndex >= careerMode.works.length - 1 : false)}
-              className="flex-1 py-3 text-xl font-bold bg-white text-black rounded-2xl hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 py-2 text-base font-semibold bg-white text-black rounded-xl hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {careerLoading ? '…' : 'Next'}
             </button>
@@ -5444,7 +5444,7 @@ export default function PlayerClient({
               title="Share current channel and track"
               aria-label="Share current channel and track"
               aria-busy={sharingInFlight}
-              className="flex shrink-0 items-center justify-center py-3 px-3 rounded-2xl border border-zinc-700 text-zinc-200 hover:text-white hover:border-zinc-500 hover:bg-zinc-900 active:bg-zinc-800 disabled:opacity-60 disabled:cursor-wait transition-colors"
+              className="flex shrink-0 items-center justify-center py-2 px-3 rounded-xl border border-zinc-700 text-zinc-200 hover:text-white hover:border-zinc-500 hover:bg-zinc-900 active:bg-zinc-800 disabled:opacity-60 disabled:cursor-wait transition-colors"
             >
               {sharingInFlight ? (
                 <span
