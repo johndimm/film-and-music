@@ -89,7 +89,7 @@ export default async function SplashPage() {
               <h2 className={`${appTitle} mt-5`}>Constellations</h2>
               <p className={`${appBody} mt-3`}>{CONSTELLATIONS_DESC}</p>
               <Link
-                href="/soundings/constellations"
+                href="/trailer-visions/constellations"
                 prefetch={false}
                 aria-label="Open Constellations"
                 className="group mt-5 block w-full shrink-0 cursor-pointer overflow-hidden rounded-2xl shadow-sm outline-none ring-2 ring-transparent ring-offset-2 ring-offset-zinc-900 transition hover:opacity-95 hover:ring-violet-500/40 focus-visible:ring-violet-400"
@@ -104,7 +104,7 @@ export default async function SplashPage() {
               <div className="mt-8 flex min-h-[12rem] flex-1 flex-col gap-8 sm:min-h-0">
                 <div className="flex-1 sm:min-h-8" aria-hidden />
                 <Link
-                  href="/soundings/constellations"
+                  href="/trailer-visions/constellations"
                   prefetch={false}
                   className="inline-flex w-full max-w-[18rem] items-center justify-center self-center rounded-xl bg-violet-600 px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-violet-500"
                 >

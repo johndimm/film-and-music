@@ -158,6 +158,8 @@ export default async function SplashPage({
           >
             LinkedIn
           </a>
+          <a href="/privacy" className="transition-colors hover:text-zinc-200">Privacy</a>
+          <a href="/terms" className="transition-colors hover:text-zinc-200">Terms</a>
         </footer>
       </div>
     </div>

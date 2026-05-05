@@ -16,6 +16,33 @@ export default function DocsIndex() {
               Every API call — search, playback, auth, rate limiting, OAuth scopes.
             </p>
           </a>
+          <a
+            href="/docs/youtube-response"
+            className="border border-zinc-800 hover:border-zinc-600 rounded-xl p-4 transition-colors group"
+          >
+            <p className="font-medium text-zinc-100 group-hover:text-white">YouTube ToS Violation Response</p>
+            <p className="text-xs text-zinc-500 mt-1">
+              Point-by-point reply to the YouTube API Services violations report V.1.
+            </p>
+          </a>
+          <a
+            href="/privacy"
+            className="border border-zinc-800 hover:border-zinc-600 rounded-xl p-4 transition-colors group"
+          >
+            <p className="font-medium text-zinc-100 group-hover:text-white">Privacy Policy</p>
+            <p className="text-xs text-zinc-500 mt-1">
+              What data Earprint collects, how it's used, and your rights.
+            </p>
+          </a>
+          <a
+            href="/terms"
+            className="border border-zinc-800 hover:border-zinc-600 rounded-xl p-4 transition-colors group"
+          >
+            <p className="font-medium text-zinc-100 group-hover:text-white">Terms of Use</p>
+            <p className="text-xs text-zinc-500 mt-1">
+              Conditions for using Earprint, including YouTube and Spotify terms.
+            </p>
+          </a>
         </div>
       </div>
     </div>

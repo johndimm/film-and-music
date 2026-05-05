@@ -153,8 +153,9 @@ function PersistentPlayerHostInner({
    */
   const pathNorm = pathname.replace(/\/+$/, '')
   const isFilmMusicLanding = pathNorm === '' || pathNorm === '/'
+  const isStaticPage = pathNorm === '/privacy' || pathNorm === '/terms'
 
-  if (!canPlay || isMoviePlayerRoute || isFilmMusicLanding) {
+  if (!canPlay || isMoviePlayerRoute || isFilmMusicLanding || isStaticPage) {
     return <>{children}</>
   }
 
