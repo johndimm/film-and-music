@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useCallback } from 'react';
 import { GraphNode, GraphLink } from '../types';
-import { fetchConnections, fetchPersonWorks, classifyEntity, fetchOrgKeyPeopleBlockViaSearch, LockedPair } from '../services/geminiService';
+import { fetchConnections, fetchPersonWorks, classifyEntity, fetchOrgKeyPeopleBlockViaSearch, LockedPair } from '../services/aiService';
 import { fetchWikipediaSummary, fetchWikipediaExtract, fetchWikidataKeyPeopleForTitle, fetchWikidataCastForTitle } from '../services/wikipediaService';
 import {
     searchOpenAlexAuthor,
