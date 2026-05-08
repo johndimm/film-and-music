@@ -6,7 +6,7 @@ import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
-import { fetchConnections, fetchPersonWorks, classifyEntity, classifyStartPair, fetchConnectionPath, findWikipediaTitle, fetchOrgKeyPeopleBlockViaSearch } from "./services/aiService";
+import { fetchConnections, fetchPersonWorks, classifyEntity, classifyStartPair, fetchConnectionPath, findWikipediaTitle, fetchOrgKeyPeopleBlockViaSearch, sanitizeSearchTerm } from "./services/aiService";
 import { fetchWikipediaSummary } from "./services/wikipediaService";
 import { resolveImageForTitle, fetchDuckDuckGoImages } from "./services/resolveImageForTitle";
 
@@ -973,8 +973,11 @@ app.get("/api/ddg-image-test", async (req, res) => {
 // --- AI Proxy Endpoints ---
 
 app.post("/api/ai/classify-start", async (req, res) => {
-  const { term, wikiContext } = req.body;
-  if (!term) return res.status(400).json({ error: "term is required" });
+  const raw = req.body.term;
+  if (!raw) return res.status(400).json({ error: "term is required" });
+  const term = sanitizeSearchTerm(raw);
+  const { wikiContext } = req.body;
+  if (term !== raw) console.log(`🧹 [Sanitize] "${raw}" → "${term}"`);
   console.log(`📡 [Proxy] Classify-Start: "${term}"`);
   try {
     const result = await classifyStartPair(term, wikiContext);
@@ -986,8 +989,11 @@ app.post("/api/ai/classify-start", async (req, res) => {
 });
 
 app.post("/api/ai/classify", async (req, res) => {
-  const { term, wikiContext } = req.body;
-  if (!term) return res.status(400).json({ error: "term is required" });
+  const raw = req.body.term;
+  if (!raw) return res.status(400).json({ error: "term is required" });
+  const term = sanitizeSearchTerm(raw);
+  const { wikiContext } = req.body;
+  if (term !== raw) console.log(`🧹 [Sanitize] "${raw}" → "${term}"`);
   console.log(`📡 [Proxy] Classify: "${term}"`);
   try {
     const result = await classifyEntity(term, wikiContext);

@@ -249,11 +249,12 @@ async function pickBestEmbeddableVideoId(
   for (const it of data.items ?? []) {
     statusById.set(it.id, it.status?.embeddable)
   }
-  // Preserve search ranking: first hit that is not explicitly non-embeddable
+  // Prefer videos explicitly marked embeddable; fall back to "not explicitly false".
   for (const vid of videoIds) {
-    const emb = statusById.get(vid)
-    if (emb === false) continue
-    return vid
+    if (statusById.get(vid) === true) return vid
+  }
+  for (const vid of videoIds) {
+    if (statusById.get(vid) !== false) return vid
   }
   return null
 }

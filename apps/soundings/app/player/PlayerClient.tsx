@@ -5171,14 +5171,9 @@ export default function PlayerClient({
               }}
               onPlayerError={code => {
                 // Error 5 (HTML5/autoplay) is handled in YoutubePlayer itself (shows tap-to-play overlay).
-                // Here we only receive truly unplayable errors: 2 (invalid ID), 100 (not found), 101/150 (embedding disabled).
-                // Show error in UI instead of auto-advancing, to avoid burning search quota on cascading failures.
-                console.warn('[player] YouTube unplayable error', code)
-                const hint =
-                  code === 101 || code === 150
-                    ? "This video can't be played in the embedded player (restricted by the owner). Open it on YouTube, or press Next."
-                    : `YouTube video unavailable (error ${code}). Open YouTube to watch it there, or press Next.`
-                setError(hint)
+                // Errors 2, 100, 101, 150 = invalid ID / not found / embedding disabled — skip automatically.
+                console.warn('[player] YouTube unplayable error, skipping', code)
+                advanceRef.current?.()
               }}
             />
           )}

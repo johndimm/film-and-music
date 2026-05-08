@@ -1,7 +1,7 @@
 "use client";
 import { GoogleGenAI, Type } from "@google/genai";
 import { GeminiResponse, PersonWorksResponse, PathResponse } from "../types";
-import { getApiKey, getResponseText, cleanJson, parseJsonFromModelText, withTimeout, withRetry, getEnvCacheUrl, getEnvGeminiModel, getEnvGeminiModelClassify } from "./aiUtils";
+import { getApiKey, getResponseText, cleanJson, parseJsonFromModelText, withTimeout, withRetry, getEnvCacheUrl, getEnvGeminiModel, getEnvGeminiModelClassify, sanitizeSearchTerm } from "./aiUtils";
 
 export { getApiKey, getResponseText, cleanJson, parseJsonFromModelText, withTimeout, withRetry, getEnvCacheUrl, getEnvGeminiModel, getEnvGeminiModelClassify } from "./aiUtils";
 
@@ -29,6 +29,12 @@ CRITICAL EXAMPLES TO PREVENT MISCLASSIFICATION:
 - "Star Wars" → COMPOSITE (type: Movie, isAtomic: false), pair: Actor ↔ Movie
 - Movies/books/albums are ALWAYS composite (created BY actors/authors/musicians)
 
+CLASSICAL MUSIC RULE:
+- When a node title embeds a composer's name — patterns like "Bach: Goldberg Variations", "Ligeti — Lux Aeterna", "György Ligeti - Mathieu Romano / Lux Aeterna" — the COMPOSER is the primary atomic entity.
+- Return the COMPOSER (e.g., "Johann Sebastian Bach", "György Ligeti") as an atomic node, NOT the performer/interpreter.
+- The composition itself (e.g., "Goldberg Variations", "Lux Aeterna") is the composite node.
+- Performers (e.g., "Glenn Gould", "Mathieu Romano") are secondary atomics; only include them if the composer is already present.
+
 CRITICAL ACCURACY RULE:
 If a section titled "USE THIS VERIFIED INFORMATION FOR ACCURACY" is provided, you MUST prioritize this information above your own internal knowledge.
 
@@ -50,6 +56,14 @@ Entity Classification:
   * Atomic entities (Actor, Person, Author, Artist, Character, Scientist, Philosopher, Academic, Researcher, Director, Composer) → isAtomic=true
   * Composite entities (Movie, Book, Novel, Play, Album, Band, Organization, Institution, Movement, Event, Company, Paper, Theory, Paradox) → isAtomic=false
 
+CRITICAL — DO NOT return any of the following as entities:
+- YouTube channel names or usernames (e.g. "pianetapapalla62", "France Musique concerts1899")
+- Streaming platform names (YouTube, Spotify, France Musique, IDAGIO, Medici)
+- Recording labels used alone without a work title (e.g. "Deutsche Grammophon", "ECM Records")
+- Concert series or broadcast programme names that are not independently notable entities
+- Any string that mixes a platform/channel name with digits (e.g. "concerts1899", "FMchannel42")
+Only return canonical real-world named entities: composers, performers, compositions, musical works, ensembles, orchestras, or historical events.
+
 Return strict JSON.
 `;
 
@@ -62,6 +76,21 @@ const CLASSIFY_TIMEOUT_MS = 15000; // 15 seconds for classification
 // - VITE_GEMINI_MODEL_CLASSIFY: optional override for classification
 const getGeminiModel = getEnvGeminiModel;
 const getGeminiModelClassify = getEnvGeminiModelClassify;
+
+// Rejects YouTube channel names, streaming platforms, and other web junk.
+function isValidEntityName(name: string): boolean {
+  if (!name || typeof name !== "string") return false;
+  const t = name.trim();
+  // Reject username pattern: no spaces, lowercase + digits, length > 4
+  if (!/\s/.test(t) && /[a-z]/.test(t) && /\d/.test(t) && t.length > 4) return false;
+  // Reject "! " separator common in YouTube video titles
+  if (t.includes("! ")) return false;
+  // Reject known streaming/platform keywords followed by digits
+  if (/\b(concerts?|channel|musique|archive|records?)\d+/i.test(t)) return false;
+  // Reject very long single-word strings
+  if (!/\s/.test(t) && t.length > 20) return false;
+  return true;
+}
 
 export type LockedPair = {
   atomicType: string;
@@ -130,8 +159,82 @@ export function defaultStartPairResult(reason: string): {
   };
 }
 
+/**
+ * Given raw pasted text (YouTube title, channel name, multi-line description),
+ * ask the LLM to pick the best graph starting node — using world knowledge to
+ * disambiguate and choose the most meaningful hub entity. Falls back to raw input on failure.
+ */
+export const extractMusicEntity = async (raw: string): Promise<string> => {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+
+  const apiKey = await getApiKey();
+  if (!apiKey) return trimmed;
+
+  const ai = new GoogleGenAI({ apiKey });
+  const prompt = `You are given raw text from a music context (YouTube title, track listing, now-playing display, or search query). It may include one or more track titles, an artist name, a composer, a YouTube channel username, a year, or other metadata.
+
+Return the single best name to use as a music knowledge-graph starting node — one that will connect meaningfully to related works, composers, performers, and styles. Use your world knowledge of music to pick an unambiguous, well-known entity.
+
+Guidelines:
+- When an artist/composer is present alongside a single track title, always prefer "Artist: Track" (e.g. "Daft Punk: One More Time"). A bare track title is rarely enough — the artist makes it unambiguous.
+- When multiple track titles by the same artist are listed (e.g. separated by "/" or newlines), return just the artist name — it makes a better hub node.
+- For classical music, prefer composer over performer; include the work title (e.g. "Fauré: Sicilienne").
+- Use world knowledge to disambiguate ambiguous titles: if the artist clarifies the meaning, include them. "Around the World" alone could be Jules Verne; "Daft Punk: Around the World" is unambiguous.
+- Ignore YouTube channel usernames (random strings, channel handles), record labels, streaming platform names, and bare years.
+
+Examples:
+- "Gautier Capuçon plays Fauré: Sicilienne, Op. 78\\nWarner Classics" → "Fauré: Sicilienne, Op. 78"
+- "Alban Berg- Lyric Suite Part 3\\nplayingmusiconmars1926" → "Alban Berg: Lyric Suite"
+- "György Ligeti - Mathieu Romano\\nLux Aeterna1966" → "György Ligeti: Lux Aeterna"
+- "Ravel : Pavane (Orchestre national de France / Dalia Stasevska)\\nFrance Musique concerts1899" → "Ravel: Pavane pour une infante défunte"
+- "Vaughan Williams ~ The Lark Ascending" → "Vaughan Williams: The Lark Ascending"
+- "Hildegard von Bingen, O rubor sanguinis (with score)\\nhuakinthoi" → "Hildegard von Bingen: O rubor sanguinis"
+- "Around the World / Harder, Better, Faster, Stronger\\nDaft Punk" → "Daft Punk"
+- "One More Time\\nDaft Punk" → "Daft Punk: One More Time"
+- "The Ends\\nSeth David2024" → "Seth David: The Ends"
+- "10% (feat. Kali Uchis)\\nKAYTRANADA, Kali Uchis2019" → "KAYTRANADA: 10% (feat. Kali Uchis)"
+- "Glenn Gould" → "Glenn Gould"
+- "Bach: Goldberg Variations" → "Bach: Goldberg Variations"
+
+Raw text:
+"""
+${trimmed}
+"""
+
+Return JSON: { "entity": "<extracted entity name>" }`;
+
+  try {
+    const response = await withTimeout(
+      ai.models.generateContent({
+        model: getGeminiModelClassify(),
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: { entity: { type: Type.STRING } },
+            required: ["entity"]
+          }
+        }
+      }),
+      8000,
+      "extractMusicEntity timed out"
+    );
+    const parsed = parseJsonFromModelText(getResponseText(response)) as { entity?: string } | null;
+    const entity = parsed?.entity?.trim();
+    if (entity && entity.length > 1) {
+      if (entity !== trimmed) console.log(`[extractMusicEntity] "${trimmed}" → "${entity}"`);
+      return entity;
+    }
+  } catch (e) {
+    console.warn("[extractMusicEntity] failed, using raw input:", String(e).slice(0, 120));
+  }
+  return trimmed;
+};
+
 export const classifyStartPair = async (
-  term: string,
+  rawTerm: string,
   wikiContext?: string
 ): Promise<{
   type: string;
@@ -141,6 +244,7 @@ export const classifyStartPair = async (
   compositeType: string;
   reasoning: string;
 }> => {
+  const term = await extractMusicEntity(rawTerm);
   if (shouldProxy()) {
     return callAiProxy("/api/ai/classify-start", { term, wikiContext });
   }
@@ -188,6 +292,7 @@ Rules:
 - If "${term}" is an organization/institution/band, it is ALWAYS COMPOSITE.
 - If "${term}" looks like an academic paper or DOI/arXiv, it is COMPOSITE (use Author ↔ Paper).
 - If "${term}" is a very famous person, it is ATOMIC even if they have works.
+- CLASSICAL MUSIC PERFORMANCE: If "${term}" matches the pattern "Performer plays/performs Composer: Work" or "Composer - Work (Performer)" or "Performer - Composer: Work", classify it as COMPOSITE (type: Performance or Composition) with pair Performer ↔ Composition. When expanded, this node should yield BOTH the composer AND the performer as atomic connections.
 `;
 
   try {
@@ -433,6 +538,8 @@ export const fetchConnections = async (
       ${(compositeType || "").match(/^(Movie|Film|Book|Novel|Play|Opera)$/i) ? '\nSPECIAL CASE (Fiction): For works of fiction, prioritize returning CHARACTERS as the atomic entities.' : ''}
       ${(compositeType || "").match(/^(Magazine|Newspaper|Journal|Periodical|Publication)$/i) ? '\nSPECIAL CASE (Magazine): For periodicals/magazines, prioritize returning its most FAMOUS AND LONG-TIME WRITERS, columnists, and editors-in-chief. If some of these are already in the graph, find other significant figures.' : ''}
       
+      SPECIAL CASE (classical music recording): If the Source Node title contains a composer's name — patterns like "Bach: Goldberg Variations", "Ligeti — Lux Aeterna", "Composer - Performer / Work Title" — you MUST return the COMPOSER as the first atomic entity. Do NOT return the performer/interpreter as the primary result. The composer whose name appears in the title is the most important connection.
+
       CRITICAL BIPARTITE RULE:
       - The Source Node is a COMPOSITE entity.
       - Therefore, ALL returned entities MUST be ATOMIC entities (${atomicLabel}).
@@ -497,11 +604,13 @@ export const fetchConnections = async (
     const parsed = parseJsonFromModelText(rawText) as GeminiResponse | null;
     if (!parsed || !Array.isArray(parsed.people)) return { people: [] };
 
-    // Force correct bipartite type regardless of LLM slip-ups
-    parsed.people = parsed.people.map(p => ({
-      ...p,
-      isAtomic: true // In fetchConnections, the source is COMPOSITE, so all results MUST be ATOMIC (true)
-    }));
+    // Force correct bipartite type regardless of LLM slip-ups; drop junk entity names
+    parsed.people = parsed.people
+      .filter(p => isValidEntityName(p.name))
+      .map(p => ({
+        ...p,
+        isAtomic: true // In fetchConnections, the source is COMPOSITE, so all results MUST be ATOMIC (true)
+      }));
 
     return parsed;
   } catch (error) {
@@ -598,6 +707,11 @@ export const fetchPersonWorks = async (
        - Set the returned item's "type" to "Album" (or "Composition" / "Symphony" / "Song" when clearly applicable).
        - QUOTA: For a musician, return AT LEAST 6-8 specific major albums or compositions.
 
+       SPECIAL CASE (classical performer/conductor): If "${nodeName}" is primarily a performer or conductor (not a composer), name every returned composition as "Composer: Work Title" — e.g., "Ravel: Pavane pour une infante défunte", "Beethoven: Symphony No. 9".
+       - DO NOT include the performer's name, orchestra name, label, or recording info in the composition title.
+       - DO NOT return YouTube channel names, concert series names, or recording platforms (e.g., "France Musique concerts1899", "DG Archive") as entities.
+       - This naming convention ensures the composer's name travels with the node and can be extracted when the node is later expanded.
+
        SPECIAL CASE (ingredient/food): If "${nodeName}" is an ingredient or food item, return 8-10 specific recipes that prominently feature this ingredient.
        - Set the returned item's "type" field to "Recipe".
        - Return well-known, named recipes (e.g., for "Beef": "Beef Wellington", "Beef Bourguignon", "Steak Tartare", "Korean Bulgogi", "Beef Stroganoff", "Pho", "Beef Rendang", "Chili con Carne").
@@ -680,8 +794,9 @@ export const fetchPersonWorks = async (
     // console.log(`🤖 [Gemini] Raw response for "${nodeName}" (works):`, rawText);
     const parsed = parseJsonFromModelText(rawText) as PersonWorksResponse | null;
     if (!parsed || !Array.isArray(parsed.works)) return { works: [] };
-    // Force correct bipartite type regardless of LLM slip-ups
+    // Force correct bipartite type regardless of LLM slip-ups; drop junk entity names
     if (parsed.works) {
+      parsed.works = parsed.works.filter(w => isValidEntityName(w.entity));
       if (dateRequired) {
         parsed.works = parsed.works.filter(w => w.year !== null && w.year !== undefined && !isNaN(Number(w.year)));
       }

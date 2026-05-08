@@ -99,7 +99,27 @@ Output Format Rules:
 
 Entity Classification:
 - isAtomic: true for INDIVIDUAL PEOPLE/CHARACTERS, false for WORKS/GROUPS/ORGANIZATIONS.
+
+CRITICAL — DO NOT return:
+- YouTube channel names, usernames, or video titles (e.g. "pianetapapalla62", "MyChannel! Video Title")
+- Strings that are a username concatenated with a video title
+- Any entity whose name looks like an online username (all-lowercase + digits, no spaces)
+- Raw video metadata from any platform
+Only return canonical real-world named entities: people, musical works, books, films, organizations, historical events.
 `;
+
+// Rejects nodes that look like YouTube usernames or video titles rather than real entities.
+function isValidEntityName(name: string): boolean {
+  if (!name || typeof name !== "string") return false;
+  const trimmed = name.trim();
+  // Reject if it contains "! " — YouTube video title separator pattern
+  if (trimmed.includes("! ")) return false;
+  // Reject if it looks like a username: no spaces, mixes lowercase letters and digits
+  if (!/\s/.test(trimmed) && /[a-z]/.test(trimmed) && /\d/.test(trimmed) && trimmed.length > 4) return false;
+  // Reject very long single-word strings (likely concatenated junk)
+  if (!/\s/.test(trimmed) && trimmed.length > 20) return false;
+  return true;
+}
 
 export const classifyStartPair = async (
   term: string,
@@ -285,7 +305,9 @@ Return JSON:
     );
     const parsed = parseJsonFromModelText(raw) as GeminiResponse | null;
     if (!parsed || !Array.isArray(parsed.people)) return { people: [] };
-    parsed.people = parsed.people.map(p => ({ ...p, isAtomic: true }));
+    parsed.people = parsed.people
+      .filter(p => isValidEntityName(p.name))
+      .map(p => ({ ...p, isAtomic: true }));
     return parsed;
   } catch (e) {
     console.error("[DeepSeek] fetchConnections error:", e);
@@ -349,7 +371,9 @@ Return JSON:
     );
     const parsed = parseJsonFromModelText(raw) as PersonWorksResponse | null;
     if (!parsed || !Array.isArray(parsed.works)) return { works: [] };
-    parsed.works = parsed.works.map(w => ({ ...w, isAtomic: false }));
+    parsed.works = parsed.works
+      .filter(w => isValidEntityName(w.entity))
+      .map(w => ({ ...w, isAtomic: false }));
     return parsed;
   } catch (e) {
     console.error("[DeepSeek] fetchPersonWorks error:", e);

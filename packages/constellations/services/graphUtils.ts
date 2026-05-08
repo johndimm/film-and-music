@@ -303,7 +303,27 @@ export const dedupeGraph = (
         return nodeIdSet.has(a) && nodeIdSet.has(b);
     });
 
-    return spliceOrphanCompositesToPersonHub(nodesOut, linksFiltered);
+    const spliced = spliceOrphanCompositesToPersonHub(nodesOut, linksFiltered);
+
+    // Final pass: remove any nodes that are still isolated (degree 0) after splice.
+    // These arise when dedup ID remapping drops links, leaving both composite and atomic orphans.
+    // Only prune when there are multiple nodes — a single-node graph (e.g. search just started)
+    // must be preserved.
+    if (spliced.nodes.length > 1) {
+        const finalDegree = new Map<string, number>();
+        spliced.links.forEach(l => {
+            const s = String(typeof l.source === 'object' ? (l.source as any).id : l.source);
+            const t = String(typeof l.target === 'object' ? (l.target as any).id : l.target);
+            finalDegree.set(s, (finalDegree.get(s) || 0) + 1);
+            finalDegree.set(t, (finalDegree.get(t) || 0) + 1);
+        });
+        const connected = spliced.nodes.filter(n => (finalDegree.get(String(n.id)) || 0) > 0);
+        if (connected.length > 0) {
+            return { nodes: connected, links: spliced.links };
+        }
+    }
+
+    return spliced;
 };
 
 type ExpansionTarget = GraphNode & {

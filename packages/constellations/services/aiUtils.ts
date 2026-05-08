@@ -229,6 +229,53 @@ export async function getApiKey() {
   return key;
 }
 
+/**
+ * Strip YouTube channel names, bare years, and other web junk from a pasted search term.
+ * Handles multi-line pastes like:
+ *   "Alban Berg- Lyric Suite Part 3 Allegro misterioso\nplayingmusiconmars\n1926"
+ * Returns the first substantive line with trailing noise removed.
+ */
+export function sanitizeSearchTerm(raw: string): string {
+  if (!raw || typeof raw !== "string") return raw;
+
+  const RECORD_LABELS = /^(warner classics|deutsche grammophon|ecm records|decca|hyperion|harmonia mundi|naïve|sony classical|emi classics|philips classics|virgin classics|erato|chandos|bis records|naxos|ondine|telarc)$/i;
+
+  const isJunkLine = (line: string): boolean => {
+    const t = line.trim();
+    if (!t) return true;
+    // Pure year
+    if (/^\d{4}$/.test(t)) return true;
+    // YouTube channel pattern: no spaces, lowercase + digits, length > 4
+    if (!/\s/.test(t) && /[a-z]/.test(t) && /\d/.test(t) && t.length > 4) return true;
+    // Single word, all lowercase, no digits — likely a username without numbers
+    if (!/\s/.test(t) && t === t.toLowerCase() && t.length > 10) return true;
+    // Known record labels when appearing alone on a line
+    if (RECORD_LABELS.test(t)) return true;
+    return false;
+  };
+
+  // Split on newlines, filter junk lines
+  const lines = raw.split(/\n/).map(l => l.trim()).filter(l => !isJunkLine(l));
+  if (lines.length === 0) return raw.split(/\n/)[0]?.trim() || raw.trim();
+
+  // From the first good line, strip trailing tokens that look like channel names or years
+  let first = lines[0].replace(/\s+[a-z][a-z0-9]{4,}\d+\s*$/i, "").trim();  // e.g. "concerts1899"
+
+  // "Performer plays/performs Composer: Work" → "Composer: Work"
+  // e.g. "Gautier Capuçon plays Fauré: Sicilienne" → "Fauré: Sicilienne"
+  const playsMatch = first.match(/^.+?\s+(?:plays?|performs?|interprets?|conducted?\s+by)\s+(.+)$/i);
+  if (playsMatch) {
+    const extracted = playsMatch[1].trim();
+    if (extracted.length > 3) first = extracted;
+  }
+
+  // Strip trailing parenthetical performer info: "Work (Orchestra / Conductor)" → "Work"
+  // e.g. "Pavane pour une infante défunte (Orchestre national de France / Dalia Stasevska)"
+  first = first.replace(/\s*\([^)]*(?:\/|orchestra|ensemble|philharmonic|conducted)[^)]*\)\s*$/i, "").trim();
+
+  return first || lines[0];
+}
+
 // Wrap promise with timeout
 export function withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> {
   return new Promise((resolve, reject) => {

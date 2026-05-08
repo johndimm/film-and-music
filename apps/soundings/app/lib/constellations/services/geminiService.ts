@@ -130,8 +130,82 @@ export function defaultStartPairResult(reason: string): {
   };
 }
 
+/**
+ * Given raw pasted text (YouTube title, channel name, multi-line description),
+ * ask the LLM to pick the best graph starting node — using world knowledge to
+ * disambiguate and choose the most meaningful hub entity. Falls back to raw input on failure.
+ */
+export const extractMusicEntity = async (raw: string): Promise<string> => {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+
+  const apiKey = await getApiKey();
+  if (!apiKey) return trimmed;
+
+  const ai = new GoogleGenAI({ apiKey });
+  const prompt = `You are given raw text from a music context (YouTube title, track listing, now-playing display, or search query). It may include one or more track titles, an artist name, a composer, a YouTube channel username, a year, or other metadata.
+
+Return the single best name to use as a music knowledge-graph starting node — one that will connect meaningfully to related works, composers, performers, and styles. Use your world knowledge of music to pick an unambiguous, well-known entity.
+
+Guidelines:
+- When an artist/composer is present alongside a single track title, always prefer "Artist: Track" (e.g. "Daft Punk: One More Time"). A bare track title is rarely enough — the artist makes it unambiguous.
+- When multiple track titles by the same artist are listed (e.g. separated by "/" or newlines), return just the artist name — it makes a better hub node.
+- For classical music, prefer composer over performer; include the work title (e.g. "Fauré: Sicilienne").
+- Use world knowledge to disambiguate ambiguous titles: if the artist clarifies the meaning, include them. "Around the World" alone could be Jules Verne; "Daft Punk: Around the World" is unambiguous.
+- Ignore YouTube channel usernames (random strings, channel handles), record labels, streaming platform names, and bare years.
+
+Examples:
+- "Gautier Capuçon plays Fauré: Sicilienne, Op. 78\\nWarner Classics" → "Fauré: Sicilienne, Op. 78"
+- "Alban Berg- Lyric Suite Part 3\\nplayingmusiconmars1926" → "Alban Berg: Lyric Suite"
+- "György Ligeti - Mathieu Romano\\nLux Aeterna1966" → "György Ligeti: Lux Aeterna"
+- "Ravel : Pavane (Orchestre national de France / Dalia Stasevska)\\nFrance Musique concerts1899" → "Ravel: Pavane pour une infante défunte"
+- "Vaughan Williams ~ The Lark Ascending" → "Vaughan Williams: The Lark Ascending"
+- "Hildegard von Bingen, O rubor sanguinis (with score)\\nhuakinthoi" → "Hildegard von Bingen: O rubor sanguinis"
+- "Around the World / Harder, Better, Faster, Stronger\\nDaft Punk" → "Daft Punk"
+- "One More Time\\nDaft Punk" → "Daft Punk: One More Time"
+- "The Ends\\nSeth David2024" → "Seth David: The Ends"
+- "10% (feat. Kali Uchis)\\nKAYTRANADA, Kali Uchis2019" → "KAYTRANADA: 10% (feat. Kali Uchis)"
+- "Glenn Gould" → "Glenn Gould"
+- "Bach: Goldberg Variations" → "Bach: Goldberg Variations"
+
+Raw text:
+"""
+${trimmed}
+"""
+
+Return JSON: { "entity": "<extracted entity name>" }`;
+
+  try {
+    const response = await withTimeout(
+      ai.models.generateContent({
+        model: getGeminiModelClassify(),
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: { entity: { type: Type.STRING } },
+            required: ["entity"]
+          }
+        }
+      }),
+      8000,
+      "extractMusicEntity timed out"
+    );
+    const parsed = parseJsonFromModelText(getResponseText(response)) as { entity?: string } | null;
+    const entity = parsed?.entity?.trim();
+    if (entity && entity.length > 1) {
+      if (entity !== trimmed) console.log(`[extractMusicEntity] "${trimmed}" → "${entity}"`);
+      return entity;
+    }
+  } catch (e) {
+    console.warn("[extractMusicEntity] failed, using raw input:", String(e).slice(0, 120));
+  }
+  return trimmed;
+};
+
 export const classifyStartPair = async (
-  term: string,
+  rawTerm: string,
   wikiContext?: string
 ): Promise<{
   type: string;
@@ -141,6 +215,8 @@ export const classifyStartPair = async (
   compositeType: string;
   reasoning: string;
 }> => {
+  const term = await extractMusicEntity(rawTerm);
+
   if (shouldProxy()) {
     return callAiProxy("/api/ai/classify-start", { term, wikiContext });
   }

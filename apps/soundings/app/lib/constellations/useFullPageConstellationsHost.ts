@@ -71,10 +71,12 @@ export function useFullPageConstellationsHost(input: {
     const snap = getPlayerSnapshot();
     const album = snap?.album?.trim();
     const track = snap?.track?.trim();
+    const artist = snap?.artist?.trim();
     const mergedExpand = [
       ...extra,
       ...(album ? [album] : []),
       ...(track ? [track] : []),
+      ...(artist ? [artist] : []),
     ];
     if (album || track) {
       setNowPlayingKey(`${npRev}::${album || ""}::${track || ""}`);
@@ -83,11 +85,17 @@ export function useFullPageConstellationsHost(input: {
     }
     if (qParam) {
       setExternalSearch(null);
-    } else if (snap?.artist?.trim()) {
-      const t = snap.artist.trim();
-      setExternalSearch({ term: t, id: `np:${t.toLowerCase()}` });
     } else {
-      setExternalSearch(null);
+      // Prefer the track title over the artist/channel name. For YouTube classical music,
+      // the title contains the composer ("Hildegard von Bingen, O rubor sanguinis") while
+      // the artist is just the uploader's channel name. The LLM in classifyStartPair
+      // (extractMusicEntity) will parse the title to extract the primary musical entity.
+      const searchTerm = track || snap?.artist?.trim() || "";
+      if (searchTerm) {
+        setExternalSearch({ term: searchTerm, id: `np:${searchTerm.toLowerCase()}` });
+      } else {
+        setExternalSearch(null);
+      }
     }
     setAutoExpandTitles(mergedExpand);
   }, [
