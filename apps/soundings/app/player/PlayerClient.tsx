@@ -5003,6 +5003,7 @@ export default function PlayerClient({
               )}
               {channels.length > 1 && (
                 <button
+                  type="button"
                   onClick={e => { e.stopPropagation(); deleteChannel(ch.id) }}
                   className="text-zinc-600 hover:text-red-400 ml-1 leading-none transition-colors"
                 >×</button>
@@ -5171,9 +5172,8 @@ export default function PlayerClient({
               }}
               onPlayerError={code => {
                 // Error 5 (HTML5/autoplay) is handled in YoutubePlayer itself (shows tap-to-play overlay).
-                // Errors 2, 100, 101, 150 = invalid ID / not found / embedding disabled — skip automatically.
-                console.warn('[player] YouTube unplayable error, skipping', code)
-                advanceRef.current?.()
+                // Other errors (2, 100, 101, 150) mean unembeddable — log only; filtering happens at search time.
+                console.warn('[player] YouTube unplayable error (not skipping):', code)
               }}
             />
           )}
@@ -5426,6 +5426,7 @@ export default function PlayerClient({
               </button>
             )}
             <button
+              type="button"
               onClick={() => careerMode ? void careerGo(1) : advanceWithFade()}
               disabled={careerLoading || (careerMode ? careerMode.currentIndex >= careerMode.works.length - 1 : false)}
               className="flex-1 py-2 text-base font-semibold bg-white text-black rounded-xl hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"

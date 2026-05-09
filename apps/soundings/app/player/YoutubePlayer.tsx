@@ -112,14 +112,41 @@ function invoke(
 
 // ─────────────────────────────────────────────────────────────────────────────
 const IFRAME_ALLOW =
-  'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+  'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; compute-pressure'
+
+function youtubeEmbedSrc(videoId: string, iframePostMessageOrigin: string): string {
+  return (
+    `https://www.youtube.com/embed/${encodeURIComponent(videoId)}` +
+    `?autoplay=1&playsinline=1&enablejsapi=1&start=0&origin=${encodeURIComponent(iframePostMessageOrigin)}`
+  )
+}
+
+/**
+ * Passed to YouTube embed `origin=` for the IFrame API postMessage handshake.
+ * In dev only: when you open **`http://127.0.0.1`** YouTube frequently returns **error 150**
+ * for URLs that embed fine from **`http://localhost`** — same TCP server, different host in
+ * the browser. Map the **query param only** (Referer stays the IP URL) enough that playback
+ * often succeeds without breaking `onReady`; if a clip still 150 on `127`, use `localhost`.
+ */
+function iframeApiOriginQueryParam(): string {
+  if (typeof window === 'undefined') return ''
+  if (
+    process.env.NODE_ENV === 'development' &&
+    window.location.hostname === '127.0.0.1'
+  ) {
+    const { protocol, port } = window.location
+    return `${protocol}//localhost${port ? `:${port}` : ''}`
+  }
+  return window.location.origin
+}
 
 /**
  * If the video hasn't started playing within this window, show the tap-to-play overlay.
- * Generous enough to cover: iframe load (~300–800ms on local dev), YT IFrame API handshake
- * (~200–500ms), autoplay-after-user-gesture grace, and Fast Refresh interruptions.
+ * Dev timeouts are longer: Strict Mode clears/rebinds, optional bind delay below, plus HMR jitter.
  */
-const AUTOPLAY_TIMEOUT_MS = 3500
+const AUTOPLAY_TIMEOUT_MS = process.env.NODE_ENV === 'development' ? 10_000 : 3500
+/** Waits past Strict Mode’s first-pass effect cleanup before `new YT.Player` (fixes missing `onReady`). */
+const YT_PLAYER_BIND_DELAY_MS = process.env.NODE_ENV === 'development' ? 240 : 0
 
 interface Props {
   videoId: string
@@ -134,17 +161,6 @@ export type YoutubePlayerHandle = {
   play: () => void
   pause: () => void
   seek: (ms: number) => void
-}
-
-function buildEmbedSrc(videoId: string): string {
-  // playsinline: required for inline playback on iOS / many mobile WebViews.
-  // start=0: force playback from the top.
-  // origin: required for the IFrame API postMessage handshake.
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  return (
-    `https://www.youtube.com/embed/${encodeURIComponent(videoId)}` +
-    `?autoplay=1&playsinline=1&enablejsapi=1&start=0&origin=${encodeURIComponent(origin)}`
-  )
 }
 
 const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePlayer(
@@ -162,6 +178,8 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
    * `getCurrentTime()` returns 0 forever and the progress slider is stuck at 0.
    */
   const wrapperCreatedRef = useRef(false)
+  /** Cleared when `new YT.Player` is deferred so Strict Mode cleanup can cancel the queued bind. */
+  const ytPlayerConstructionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Prevents double-firing onPlayerError when both the SDK callback and raw postMessage listener fire. */
   const errorFiredRef = useRef(false)
   /**
@@ -183,16 +201,37 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
   onErrorRef.current = onPlayerError
 
   const [blocked, setBlocked] = useState(false)
+  /**
+   * Client-only iframe: SSR + hydrating pass render a neutral placeholder instead of `<iframe>`
+   * (no `origin=` vs `origin=http…` disagreement). Passing `suppressHydrationWarning` on iframe
+   * was insufficient because React/dev still flagged `src` before `useEffect` ran.
+   */
+  const [iframeMounted, setIframeMounted] = useState(false)
+  useEffect(() => {
+    setIframeMounted(true)
+  }, [])
 
   const normalizedId = useMemo(() => extractYoutubeVideoIdLoose(videoId) ?? null, [videoId])
-  const embedSrc = useMemo(() => (normalizedId ? buildEmbedSrc(normalizedId) : ''), [normalizedId])
+  const embedSrc = useMemo(() => {
+    if (!normalizedId || !iframeMounted) return ''
+    return youtubeEmbedSrc(normalizedId, iframeApiOriginQueryParam())
+  }, [normalizedId, iframeMounted])
+
+  const prevEmbedSrcForWrapperRef = useRef('')
 
   useEffect(() => {
-    if (!normalizedId) return
+    if (!normalizedId || !iframeMounted) return
     console.info('[yt] mount', { videoId, normalizedId, wrapperCreated: wrapperCreatedRef.current })
     setBlocked(false)
     pendingPlayRef.current = false
     errorFiredRef.current = false
+
+    const prevEmbed = prevEmbedSrcForWrapperRef.current
+    if (prevEmbed !== '' && prevEmbed !== embedSrc) {
+      wrapperCreatedRef.current = false
+      ytPlayerRef.current = null
+    }
+    prevEmbedSrcForWrapperRef.current = embedSrc
 
     /**
      * Poll getCurrentTime as a ground-truth fallback. The YT IFrame API handshake
@@ -248,83 +287,92 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
             hasIframe: Boolean(iframeRef.current),
             hasYT: Boolean(window.YT?.Player),
           })
+          wrapperCreatedRef.current = false
           return
         }
-        const player = new window.YT.Player(iframeRef.current, {
-          events: {
-            onReady: e => {
-              // Canonical ref: `event.target` is the fully-initialized Player with methods
-              // attached. The value returned from `new YT.Player(...)` is sometimes a bare
-              // stub where `playVideo`/`pauseVideo` are missing — storing that causes
-              // "playVideo is not a function" on later taps.
-              ytPlayerRef.current = e.target
-              try {
-                const s = e.target.getPlayerState()
-                // Belt-and-suspenders start-from-zero. `start=0` in the URL usually works,
-                // but we've seen signed-in viewers land at a saved offset anyway; seekTo(0)
-                // on the first onReady guarantees the user hears the intro. The component
-                // is keyed by track id, so onReady fires once per track → one seek only.
-                try { e.target.seekTo(0, true) } catch {}
-                console.info('[yt] onReady', { state: s, pending: pendingPlayRef.current })
-                if (s === 1 || s === 3) setBlocked(false)
-                if (pendingPlayRef.current || s === -1 || s === 2 || s === 5) {
-                  pendingPlayRef.current = false
-                  e.target.playVideo()
-                }
-              } catch (err) {
-                console.warn('[yt] onReady play failed', err)
-              }
-            },
-            onStateChange: e => {
-              console.info('[yt] state', e.data)
-              if (e.data === 1 || e.data === 3) setBlocked(false)
-              // Safety net: if playback starts at a non-trivial offset (YouTube's
-              // resume-watching feature sneaking past `start=0` and the onReady seek),
-              // snap back to the beginning on the first PLAYING transition. Runs at
-              // most once per mount because we clear the flag after firing.
-              if (e.data === 1 && !didSeekToZeroOnPlayRef.current) {
-                didSeekToZeroOnPlayRef.current = true
-                const p = ytPlayerRef.current
-                try {
-                  const t = p?.getCurrentTime?.() ?? 0
-                  if (t > 1.5) {
-                    console.info('[yt] detected resume offset, snapping to 0', { t })
-                    p?.seekTo?.(0, true)
+        if (ytPlayerConstructionTimerRef.current !== null) {
+          clearTimeout(ytPlayerConstructionTimerRef.current)
+          ytPlayerConstructionTimerRef.current = null
+        }
+        ytPlayerConstructionTimerRef.current = setTimeout(() => {
+          ytPlayerConstructionTimerRef.current = null
+          const el = iframeRef.current
+          if (!el || !window.YT?.Player) {
+            wrapperCreatedRef.current = false
+            return
+          }
+          try {
+            const player = new window.YT.Player(el, {
+              events: {
+                onReady: e => {
+                  ytPlayerRef.current = e.target
+                  try {
+                    const s = e.target.getPlayerState()
+                    try {
+                      e.target.seekTo(0, true)
+                    } catch {}
+                    console.info('[yt] onReady', { state: s, pending: pendingPlayRef.current })
+                    if (s === 1 || s === 3) setBlocked(false)
+                    if (pendingPlayRef.current || s === -1 || s === 2 || s === 5) {
+                      pendingPlayRef.current = false
+                      e.target.playVideo()
+                    }
+                  } catch (err) {
+                    console.warn('[yt] onReady play failed', err)
                   }
-                } catch {}
-              }
-              if (e.data === 0) onEndedRef.current?.()
-            },
-            onError: e => {
-              console.warn('[yt] onError', e.data)
-              if (e.data === 5) {
-                setBlocked(true)
-              } else if (!errorFiredRef.current) {
-                errorFiredRef.current = true
-                onErrorRef.current?.(e.data)
-              }
-            },
-          },
-        })
-        // Tentative assignment so getCurrentTime / getDuration have something to poll;
-        // onReady replaces it with the fully-initialized instance.
-        ytPlayerRef.current = player
+                },
+                onStateChange: e => {
+                  console.info('[yt] state', e.data)
+                  if (e.data === 1 || e.data === 3) setBlocked(false)
+                  if (e.data === 1 && !didSeekToZeroOnPlayRef.current) {
+                    didSeekToZeroOnPlayRef.current = true
+                    const p = ytPlayerRef.current
+                    try {
+                      const t = p?.getCurrentTime?.() ?? 0
+                      if (t > 1.5) {
+                        console.info('[yt] detected resume offset, snapping to 0', { t })
+                        p?.seekTo?.(0, true)
+                      }
+                    } catch {}
+                  }
+                  if (e.data === 0) onEndedRef.current?.()
+                },
+                onError: e => {
+                  console.warn('[yt] onError', e.data)
+                  if (e.data === 5) {
+                    setBlocked(true)
+                  } else if (!errorFiredRef.current) {
+                    errorFiredRef.current = true
+                    onErrorRef.current?.(e.data)
+                  }
+                },
+              },
+            })
+            ytPlayerRef.current = player
+          } catch (err) {
+            console.warn('[yt] YT.Player construction failed', err)
+            wrapperCreatedRef.current = false
+          }
+        }, YT_PLAYER_BIND_DELAY_MS)
       })
     }
 
     return () => {
       clearTimeout(autoplayTimer)
       clearInterval(pollTimer)
-      // Intentionally NOT calling `ytPlayerRef.current?.destroy()` here and NOT nulling
-      // `ytPlayerRef.current`. The wrapper is tied to the iframe's lifetime — when the
-      // component truly unmounts, React removes the iframe, which implicitly kills the
-      // wrapper. Strict Mode's dev-only cleanup happens between two effect invocations
-      // while the iframe is still mounted; if we destroyed the wrapper here, the next
-      // invocation would find `ytPlayerRef` gone and event handlers dead, with no
-      // reliable way to rebuild them (binding a second wrapper to the same iframe is
-      // what caused the original bug).
+      if (ytPlayerConstructionTimerRef.current !== null) {
+        clearTimeout(ytPlayerConstructionTimerRef.current)
+        ytPlayerConstructionTimerRef.current = null
+      }
+      // React 18 Strict Mode (dev): effect runs twice — first pass sets `wrapperCreatedRef`.
+      // Without resetting here, the second pass skips `new YT.Player(...)`, timers restart,
+      // and `onReady`/`getCurrentTime()` never activate while `ytPlayerRef` still holds
+      // the tentative stub (`playVideo` missing) → perpetual tap-to-play overlay.
+      // Real unmount clears the iframe; re-binding happens on the next effect invocation.
+      wrapperCreatedRef.current = false
+      ytPlayerRef.current = null
     }
-  }, [normalizedId, videoId])
+  }, [normalizedId, videoId, embedSrc, iframeMounted])
 
   /**
    * Raw postMessage fallback: YouTube's IFrame API SDK fires `onError` via its own message
@@ -423,24 +471,27 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
     )
   }
 
-  // While the embeddability pre-check is in flight, show nothing (avoids "Video unavailable" flash).
   return (
     <div className="absolute inset-0 z-[6]">
-      <iframe
-        key={embedSrc}
-        ref={iframeRef}
-        title="YouTube video player"
-        src={embedSrc}
-        allow={IFRAME_ALLOW}
-        // YouTube validates the embedder via the Referer header on production HTTPS — sending
-        // `no-referrer` causes many videos to refuse to play on Vercel even though they work
-        // on localhost (where Referer behavior is looser). Keep this as the cross-origin
-        // default so YouTube can verify the embedding origin.
-        referrerPolicy="strict-origin-when-cross-origin"
-        allowFullScreen
-        className="absolute inset-0 h-full w-full border-0"
-      />
-      {blocked && (
+      {iframeMounted ? (
+        <iframe
+          key={embedSrc}
+          ref={iframeRef}
+          title="YouTube video player"
+          src={embedSrc}
+          allow={IFRAME_ALLOW}
+          // YouTube validates the embedder via the Referer header on production HTTPS — sending
+          // `no-referrer` causes many videos to refuse to play on Vercel even though they work
+          // on localhost (where Referer behavior is looser). Keep this as the cross-origin
+          // default so YouTube can verify the embedding origin.
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
+          className="absolute inset-0 h-full w-full border-0"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-black" aria-hidden />
+      )}
+      {iframeMounted && blocked && (
         <button
           type="button"
           className="absolute inset-0 flex items-center justify-center bg-black/70 cursor-pointer z-10"

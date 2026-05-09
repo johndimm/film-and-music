@@ -15,13 +15,17 @@ const PAGE_LINKS = [
 
 const RESOURCE_LINKS = [
   { href: '/guide', label: 'Help' },
+  { href: '/youtube-embed-test', label: 'YT embed test' },
 ]
 
 const POPOUT_FEATURES = 'popup=yes,width=440,height=860,scrollbars=yes,resizable=yes'
 
 export default function AppHeader() {
   const pathname = usePathname()
-  const isPlayer = pathname.startsWith('/player') || pathname.startsWith('/constellations')
+  const isPlayer =
+    pathname.startsWith('/player') ||
+    pathname.startsWith('/constellations') ||
+    pathname.startsWith('/youtube-embed-test')
   const settingsHref = pathname.startsWith('/constellations') ? '/constellations/settings' : '/settings'
 
   const openPopOutPlayer = () => {

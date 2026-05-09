@@ -154,8 +154,10 @@ function PersistentPlayerHostInner({
   const pathNorm = pathname.replace(/\/+$/, '')
   const isFilmMusicLanding = pathNorm === '' || pathNorm === '/'
   const isStaticPage = pathNorm === '/privacy' || pathNorm === '/terms'
+  /** Dev/diagnostic embed page — avoids a second hidden `YoutubePlayer` (react hydration + error 150 noise). */
+  const isYoutubeEmbedDiag = pathname.startsWith('/youtube-embed-test')
 
-  if (!canPlay || isMoviePlayerRoute || isFilmMusicLanding || isStaticPage) {
+  if (!canPlay || isMoviePlayerRoute || isFilmMusicLanding || isStaticPage || isYoutubeEmbedDiag) {
     return <>{children}</>
   }
 

@@ -205,58 +205,81 @@ function envBool(name: string, defaultVal: boolean): boolean {
   return defaultVal
 }
 
+
 /**
- * After search.list, call videos.list to prefer embeddable:true (costs +1 quota unit).
- * On by default — YouTube's videoEmbeddable search filter is unreliable (error 101/150).
- * Set YOUTUBE_EMBED_CHECK=0 to disable.
+ * oEmbed is more reliable than videos.list status.embeddable: YouTube returns 401 when
+ * embedding is truly disabled, 200 when it works. No API key needed; runs server-side only.
  */
-function shouldRunVideosListEmbedCheck(): boolean {
-  return envBool('YOUTUBE_EMBED_CHECK', true)
+async function isEmbeddableViaOembed(videoId: string): Promise<boolean> {
+  try {
+    const url = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&format=json`
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) })
+    return res.ok
+  } catch {
+    return true // network error: assume embeddable to avoid over-filtering
+  }
 }
 
 /**
- * search.list's videoEmbeddable filter is not enough — many results still fail in the IFrame API
- * with error 101/150 (embedding disabled). Prefer videos the Data API marks embeddable.
- * One videos.list call per search (+1 quota unit vs 100 for search).
+ * Uses videos.list `status.embeddable` to order ids, then confirms each with oEmbed (200 vs 401)
+ * until `maxCount` passing ids are collected. Same batching as a single pick — one videos.list per call.
  */
-async function pickBestEmbeddableVideoId(
+async function listEmbeddableVideoIdsInOrder(
   videoIds: string[],
-  apiKey: string
-): Promise<string | null> {
-  if (videoIds.length === 0) return null
+  apiKey: string,
+  maxCount: number
+): Promise<string[]> {
+  if (videoIds.length === 0 || maxCount <= 0) return []
   const uniq = [...new Set(videoIds)].slice(0, 50)
   const params = new URLSearchParams({
     part: 'status',
     id: uniq.join(','),
     key: apiKey,
   })
-  let res: Response
+  let statusById = new Map<string, boolean | undefined>()
   try {
-    res = await fetch(`${YOUTUBE_API_BASE}/videos?${params}`)
+    const res = await fetch(`${YOUTUBE_API_BASE}/videos?${params}`)
+    if (res.ok) {
+      const data = (await res.json()) as {
+        items?: Array<{ id: string; status?: { embeddable?: boolean } }>
+      }
+      for (const it of data.items ?? []) {
+        statusById.set(it.id, it.status?.embeddable)
+      }
+    } else {
+      const text = await res.text().catch(() => '')
+      console.warn(`[youtube] videos.list HTTP ${res.status}`, text.slice(0, 120))
+    }
   } catch (err) {
-    console.warn('[youtube] videos.list network error — skipping non-embeddable candidates', err)
-    return videoIds[0] ?? null
+    console.warn('[youtube] videos.list network error', err)
   }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    console.warn(`[youtube] videos.list HTTP ${res.status}`, text.slice(0, 120))
-    return null
+
+  let ordered = [
+    ...videoIds.filter(v => statusById.get(v) === true),
+    ...videoIds.filter(v => statusById.get(v) === undefined),
+  ]
+  if (ordered.length === 0) ordered = [...videoIds]
+
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const vid of ordered) {
+    if (seen.has(vid)) continue
+    const ok = await isEmbeddableViaOembed(vid)
+    console.info(`[youtube] oEmbed check ${vid}: ${ok ? 'embeddable' : 'blocked'}`)
+    if (ok) {
+      seen.add(vid)
+      out.push(vid)
+      if (out.length >= maxCount) break
+    }
   }
-  const data = (await res.json()) as {
-    items?: Array<{ id: string; status?: { embeddable?: boolean } }>
-  }
-  const statusById = new Map<string, boolean | undefined>()
-  for (const it of data.items ?? []) {
-    statusById.set(it.id, it.status?.embeddable)
-  }
-  // Prefer videos explicitly marked embeddable; fall back to "not explicitly false".
-  for (const vid of videoIds) {
-    if (statusById.get(vid) === true) return vid
-  }
-  for (const vid of videoIds) {
-    if (statusById.get(vid) !== false) return vid
-  }
-  return null
+  return out
+}
+
+function evictYouTubeSearchCacheEntry(key: string, entry: YouTubeCacheEntry) {
+  searchCache.delete(key)
+  videoIdToKey.delete(entry.track.videoId)
+  for (const c of entry.candidates) videoIdToKey.delete(c.videoId)
+  persistCache(searchCache)
 }
 
 /** True for YouTube auto-generated "Artist - Topic" channels and VEVO — reliably non-embeddable. */
@@ -291,24 +314,42 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   const cacheKey = query.toLowerCase().trim()
   const cached = searchCache.get(cacheKey)
   if (cached) {
-    console.info(`[youtube] cache hit: "${query}"`)
-    return { status: 'ok', track: cached.track }
+    const stillEmbeddable = await isEmbeddableViaOembed(cached.track.videoId)
+    if (!stillEmbeddable) {
+      console.warn(`[youtube] cache stale (no longer embeddable): "${query}" → evict ${cached.track.videoId}`)
+      evictYouTubeSearchCacheEntry(cacheKey, cached)
+    } else {
+      console.info(`[youtube] cache hit: "${query}"`)
+      return { status: 'ok', track: cached.track }
+    }
   }
 
   const qTrim = query.trim()
   const idFromQuery = extractYoutubeVideoIdLoose(qTrim)
   if (idFromQuery) {
-    const hint = searchHintForResolvedQuery(qTrim, idFromQuery)
-    const track = youtubeTrackFromVideoId(idFromQuery, hint)
-    if (track) {
-      const entry: YouTubeCacheEntry = { track, candidates: [] }
-      searchCache.set(cacheKey, entry)
-      videoIdToKey.set(track.videoId, cacheKey)
-      persistCache(searchCache)
-      const how =
-        idFromQuery === qTrim ? 'bare id' : extractYoutubeVideoId(qTrim) ? 'URL' : 'URL in text'
-      console.info(`[youtube] zero-quota resolve (no search.list): ${idFromQuery} (${how})`)
-      return { status: 'ok', track }
+    const apiKeyEarly = getApiKey()
+    let idOk: string[] = []
+    if (apiKeyEarly) {
+      idOk = await listEmbeddableVideoIdsInOrder([idFromQuery], apiKeyEarly, 1)
+    } else {
+      if (await isEmbeddableViaOembed(idFromQuery)) idOk = [idFromQuery]
+    }
+    if (idOk.length > 0) {
+      const resolvedId = idOk[0]!
+      const hint = searchHintForResolvedQuery(qTrim, resolvedId)
+      const track = youtubeTrackFromVideoId(resolvedId, hint)
+      if (track) {
+        const entry: YouTubeCacheEntry = { track, candidates: [] }
+        searchCache.set(cacheKey, entry)
+        videoIdToKey.set(track.videoId, cacheKey)
+        persistCache(searchCache)
+        const how =
+          resolvedId === qTrim ? 'bare id' : extractYoutubeVideoId(qTrim) ? 'URL' : 'URL in text'
+        console.info(`[youtube] zero-quota resolve (no search.list): ${resolvedId} (${how}, embeddability checked)`)
+        return { status: 'ok', track }
+      }
+    } else {
+      console.info(`[youtube] id in query not embeddable, falling through to search.list: ${idFromQuery}`)
     }
   }
 
@@ -369,11 +410,9 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   const filteredItems = allItems.length > 0 ? allItems : items
 
   const orderedIds = filteredItems.map(i => i.id?.videoId).filter((id): id is string => Boolean(id))
-  const runEmbedCheck = shouldRunVideosListEmbedCheck()
-  const chosenId = runEmbedCheck
-    ? await pickBestEmbeddableVideoId(orderedIds, apiKey)
-    : orderedIds[0] ?? null
-  console.info(`[youtube] videos.list embed check: ${runEmbedCheck ? 'on' : 'off (first search hit only)'}`)
+  /** Primary + fallback queue: all verified embeddable (videos.list + oEmbed). */
+  const embeddableIds = await listEmbeddableVideoIdsInOrder(orderedIds, apiKey, 5)
+  const chosenId = embeddableIds[0]
   if (!chosenId) {
     return { status: 'not_found' }
   }
@@ -403,19 +442,18 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
     durationMs: 0,
   }
 
-  // Store up to 4 additional candidates from the same search for zero-quota retries on error 150.
-  const candidates: YouTubeCandidate[] = filteredItems
-    .filter(i => i.id?.videoId && i.id.videoId !== videoId)
-    .slice(0, 4)
-    .map(i => {
-      const s = (i.snippet ?? {}) as Record<string, unknown>
-      const t = decodeHtmlEntities((s.title as string) ?? '')
-      const ch = decodeHtmlEntities((s.channelTitle as string) ?? '')
-      const th = s.thumbnails as typeof thumbs
-      const art = th?.high?.url ?? th?.medium?.url ?? th?.default?.url ?? null
-      const { name: n, artist: a } = parseNameArtist(t, ch)
-      return { videoId: i.id!.videoId!, name: n, artist: a, albumArt: art }
-    })
+  // Up to 4 alternates that already passed the same embeddability pipeline as the primary.
+  const candidates: YouTubeCandidate[] = embeddableIds.slice(1).flatMap(id => {
+    const i = filteredItems.find(x => x.id?.videoId === id)
+    if (!i?.id?.videoId) return []
+    const s = (i.snippet ?? {}) as Record<string, unknown>
+    const t = decodeHtmlEntities((s.title as string) ?? '')
+    const ch = decodeHtmlEntities((s.channelTitle as string) ?? '')
+    const th = s.thumbnails as typeof thumbs
+    const art = th?.high?.url ?? th?.medium?.url ?? th?.default?.url ?? null
+    const { name: n, artist: a } = parseNameArtist(t, ch)
+    return [{ videoId: i.id.videoId, name: n, artist: a, albumArt: art }]
+  })
 
   const entry: YouTubeCacheEntry = { track, candidates }
   searchCache.set(cacheKey, entry)

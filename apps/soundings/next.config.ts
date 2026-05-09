@@ -29,11 +29,36 @@ function resolveLucideDir(): string {
 const nextConfig: NextConfig = {
   transpilePackages: [],
 
+  /**
+   * `http://127.0.0.1` and `http://localhost` differ by Origin hostname. Dev-only `/_next/*`
+   * checks compare **`hostname` only** (no port): `allowedDevOrigins` must include `127.0.0.1`,
+   * not `127.0.0.1:3000`, or alternate-host requests stay blocked.
+   * @see https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+   */
+  allowedDevOrigins: ['127.0.0.1'],
+
   outputFileTracingRoot: repoRoot,
 
   async redirects() {
     return [{ source: '/logs', destination: '/trailer-visions/logs', permanent: false }]
   },
+
+  ...(process.env.NODE_ENV === 'development'
+    ? {
+        /**
+         * YouTube probes compute-pressure from nested scripts; declaring it on top-level avoids
+         * noisy devtools “Permissions policy violation” lines (harmless playback-wise).
+         */
+        async headers() {
+          return [
+            {
+              source: '/(.*)',
+              headers: [{ key: 'Permissions-Policy', value: 'compute-pressure=*' }],
+            },
+          ]
+        },
+      }
+    : {}),
 
   webpack: (config) => {
     config.resolve = config.resolve ?? {}

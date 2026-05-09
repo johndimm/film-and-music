@@ -112,14 +112,6 @@ export function applyFreshLoginIfNeeded(): 'spotify' | 'youtube' | null {
         : params.get('youtube_login') === '1'
           ? 'youtube'
           : null
-    console.info(
-      '[fresh-login] check · search:',
-      window.location.search,
-      '· matched:',
-      freshSource,
-      '· alreadyApplied:',
-      freshLoginApplied,
-    )
     if (!freshSource) return null
     freshLoginApplied = true
     applyFreshLoginSource(freshSource)
