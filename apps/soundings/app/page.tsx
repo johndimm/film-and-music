@@ -20,8 +20,15 @@ export default async function SplashPage({
   searchParams: Promise<{ error?: string }>
 }) {
   const cookieStore = await cookies()
-  const hasToken = cookieStore.has('spotify_access_token')
   const { error } = await searchParams
+  /** `/player` can refresh with refresh_token; expire-only access cookie → surface “Sign in again”. */
+  const expRaw = cookieStore.get('spotify_access_token_expires_at')?.value?.trim()
+  const expMs = expRaw !== undefined && expRaw !== '' ? Number(expRaw) : NaN
+  const accessExpiryPassed = Number.isFinite(expMs) && expMs < Date.now()
+  const spotifySignedIn =
+    !error &&
+    (cookieStore.has('spotify_refresh_token') ||
+      (cookieStore.has('spotify_access_token') && !accessExpiryPassed))
 
   /** Do not redirect to `/player` here — that made `/` silently become the player after a navigation round-trip, then Web Playback resumed a few seconds later ("music on landing with no clicks"). Signed-in users should stay on Film & Music until they choose Soundings or Trailer Vision. */
 
@@ -56,11 +63,7 @@ export default async function SplashPage({
                 <p className={`${appBody} mt-3`}>{MUSIC_DESC}</p>
               </div>
               {/* GET /api/auth/youtube sets cookies + redirects — avoid raw anchor tags here (prefetch can hit those URLs without an intentional click). */}
-              <SplashAuthCard
-                loginUrl={loginUrl}
-                ytUrl={ytUrl}
-                spotifySignedIn={Boolean(hasToken && !error)}
-              />
+              <SplashAuthCard loginUrl={loginUrl} ytUrl={ytUrl} spotifySignedIn={spotifySignedIn} />
               <div className="mt-8 border-t border-zinc-800 pt-8">
                 <RequestAccessForm />
               </div>

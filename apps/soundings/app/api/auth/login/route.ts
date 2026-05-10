@@ -28,7 +28,8 @@ export async function GET(req: NextRequest) {
         `  • apps/soundings/.env.local  (or)\n` +
         `  • .env.local at the monorepo root (next to package.json)\n` +
         `Copy apps/soundings/.env.example to one of those paths and add your Spotify app values. ` +
-        `Register the same SPOTIFY_REDIRECT_URI in the Spotify Developer Dashboard (use http://127.0.0.1:3000/callback for local dev, not localhost). ` +
+        `Register the same SPOTIFY_REDIRECT_URI in the Spotify Developer Dashboard ` +
+          `(e.g. http://localhost:3000/callback for local dev, matching npm run dev -H localhost). ` +
         `Restart the dev server after saving.`,
       { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } }
     )

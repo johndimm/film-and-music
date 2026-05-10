@@ -89,6 +89,15 @@ export async function POST(req: NextRequest) {
   const rawSource =
     typeof body.source === 'string' ? body.source.trim().toLowerCase() : ''
 
+  if (process.env.NODE_ENV !== 'production') {
+    console.info('[soundings-api next-song]', {
+      rawSource: rawSource || '(omit → spotify paths)',
+      profileOnly: body.profileOnly === true,
+      hasResolveOnly: Boolean(body.songsToResolve && body.songsToResolve.length > 0),
+      host: req.headers.get('host'),
+    })
+  }
+
   /** YouTube resolve test: profile-only batch skips LLM. Env + dev-only body echo (see PlayerClient). */
   const youtubeResolveTestEffective =
     isYoutubeResolveTestServerEnabled() ||

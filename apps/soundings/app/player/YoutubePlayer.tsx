@@ -428,16 +428,20 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
-  /** Pause on tab close / navigate away so a surviving helper process does not keep trailer-like audio. */
+  /**
+   * Pause only on real document unload (tab close, refresh, or full-page navigation).
+   * Do not use `pagehide`: SPA transitions (Next.js `<Link>`) can fire `pagehide` while
+   * `PersistentPlayerHost` keeps this component mounted for background Soundings playback.
+   */
   useEffect(() => {
     const suspend = () => {
       invoke(ytPlayerRef.current, iframeRef.current, 'pauseVideo')
     }
-    window.addEventListener('pagehide', suspend)
     window.addEventListener('beforeunload', suspend)
+    window.addEventListener('unload', suspend)
     return () => {
-      window.removeEventListener('pagehide', suspend)
       window.removeEventListener('beforeunload', suspend)
+      window.removeEventListener('unload', suspend)
     }
   }, [])
 

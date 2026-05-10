@@ -38,7 +38,7 @@ export default function YouTubeEmbedTestClient({ videoId }: Props) {
         <p className="text-zinc-500">
           Video id{' '}
           <code className="text-emerald-400/90">{videoId}</code> — try another{' '}
-          <Link href="/youtube-embed-test?v=dQw4w9WgXcQ" className="text-emerald-500 hover:underline">
+          <Link prefetch={false} href="/youtube-embed-test?v=dQw4w9WgXcQ" className="text-emerald-500 hover:underline">
             example
           </Link>
           . Watch page:{' '}

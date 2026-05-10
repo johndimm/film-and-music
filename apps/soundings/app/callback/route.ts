@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { storeSpotifyTokensInResponse, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
-import { getBaseUrl } from '@/app/lib/baseUrl'
 import { spotifyRedirectUriPolicyMessage } from '@/app/lib/spotify/redirectPolicy'
 import { soundingsStorage } from '@/app/lib/platform'
 
@@ -12,7 +11,9 @@ export async function GET(req: NextRequest) {
   const code = searchParams.get('code')
   const error = searchParams.get('error')
 
-  const baseUrl = getBaseUrl() || req.nextUrl.origin
+  // Never swap localhost ↔ 127.0.0.1 here — Set-Cookie is scoped to the host Spotify actually
+  // redirected the browser to, and it must match `SPOTIFY_REDIRECT_URI`. Use this origin only.
+  const baseUrl = req.nextUrl.origin
 
   if (error || !code) {
     return Response.redirect(`${baseUrl}/?error=spotify_auth_failed`, 302)
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
   if (!response.ok) {
     const errBody = await response.text().catch(() => '')
     console.error('callback: token exchange failed', { status: response.status, body: errBody })
-    return Response.redirect(`${getBaseUrl() || baseUrl}/?error=token_exchange_failed`, 302)
+    return Response.redirect(`${baseUrl}/?error=token_exchange_failed`, 302)
   }
 
   const tokens = (await response.json()) as SpotifyTokenResponse & { scope?: string }
@@ -67,11 +68,10 @@ export async function GET(req: NextRequest) {
     scope: tokens.scope,
   })
 
-  const base = getBaseUrl() || req.nextUrl.origin
   // `?spotify_login=1` signals to the client that the user just completed Spotify auth,
   // so it can reset any leftover YouTube-mode localStorage (the source field, per-channel
   // queues populated with YouTube tracks, etc.) and then strip the query parameter.
-  const redirectUrl = new URL('/player', base)
+  const redirectUrl = new URL('/player', baseUrl)
   redirectUrl.searchParams.set('spotify_login', '1')
   const res = NextResponse.redirect(redirectUrl, {
     status: 302,

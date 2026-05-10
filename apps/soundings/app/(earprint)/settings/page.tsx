@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import AppHeader from '@/app/components/AppHeader'
 import {
@@ -365,12 +366,13 @@ export default function SettingsPage() {
             View recent prompts and responses recorded by the server (if logging is enabled).
           </p>
           <div>
-            <a
-              href="/trailer-visions/logs"
+            <Link
+              href="/player/logs"
+              prefetch={false}
               className="inline-flex items-center rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
             >
-              Open Log Viewer
-            </a>
+              Open log viewer
+            </Link>
           </div>
         </section>
 

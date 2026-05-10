@@ -15,6 +15,7 @@ const PAGE_LINKS = [
 
 const RESOURCE_LINKS = [
   { href: '/guide', label: 'Help' },
+  { href: '/player/logs', label: 'LLM logs' },
   { href: '/youtube-embed-test', label: 'YT embed test' },
 ]
 
@@ -50,6 +51,7 @@ export default function AppHeader() {
       <FilmMusicHomeLink variant={isPlayer ? 'playerDark' : 'surfaceLight'} />
       <span className={isPlayer ? 'text-zinc-700 select-none' : 'text-zinc-300 select-none'} aria-hidden>/</span>
       <Link
+        prefetch={false}
         href="/player"
         className={`text-base font-bold transition-colors ${isPlayer ? 'text-white hover:text-zinc-300' : 'text-black hover:text-zinc-600'}`}
       >
@@ -60,6 +62,7 @@ export default function AppHeader() {
         {PAGE_LINKS.map(({ href, label }) => (
           <Link
             key={href}
+            prefetch={false}
             href={href}
             className={`text-xs px-2.5 py-1 rounded transition-colors ${
               isActive(href)
@@ -71,6 +74,7 @@ export default function AppHeader() {
           </Link>
         ))}
         <Link
+          prefetch={false}
           href={settingsHref}
           className={`text-xs px-2.5 py-1 rounded transition-colors ${
             isActive(settingsHref)
@@ -86,6 +90,7 @@ export default function AppHeader() {
         {RESOURCE_LINKS.map(({ href, label }) => (
           <Link
             key={href}
+            prefetch={false}
             href={href}
             className={`text-xs transition-colors px-1 ${
               isActive(href)

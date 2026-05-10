@@ -102,8 +102,23 @@ function PersistentPlayerHostInner({
     }
   }, [sp])
 
+  /** Re-anchor to server-derived mode when leaving /player — avoids sticky youtubeLocked across routes. */
   useEffect(() => {
+    if (pathname.startsWith('/player')) return
+    setYoutubeLocked(youtubeModeFromCookie)
+  }, [pathname, youtubeModeFromCookie])
+
+  useEffect(() => {
+    let stripLoginTimer: ReturnType<typeof setTimeout> | undefined
     if (!pathname.startsWith('/player')) return
+    /**
+     * YouTube-only host lock survives /player visits in React state (see `youtube_login` / ?youtube=1).
+     * When a Spotify cookie exists but the server does not mark YouTube cookie mode,
+     * clear the stale lock unless the URL still requests YouTube (e.g. splash “Spotify → /player” after YouTube.)
+     */
+    if (accessToken && !youtubeModeFromCookie && sp.get('youtube') !== '1') {
+      setYoutubeLocked(false)
+    }
     if (sp.get('youtube') === '1') {
       setYoutubeLocked(true)
       // Mirror the server route: persist YouTube-only mode so internal `/player` links
@@ -126,9 +141,16 @@ function PersistentPlayerHostInner({
           : null
     if (freshSource) {
       setYoutubeLocked(freshSource === 'youtube')
-      router.replace(pathname)
+      // Defer past App Router bootstrap to avoid rare "Router action dispatched before initialization"
+      // races (often visible on dev/fast-refresh) when stripping login query params.
+      stripLoginTimer = window.setTimeout(() => {
+        router.replace(pathname)
+      }, 0)
     }
-  }, [pathname, sp, router])
+    return () => {
+      if (stripLoginTimer !== undefined) window.clearTimeout(stripLoginTimer)
+    }
+  }, [pathname, sp, router, accessToken, youtubeModeFromCookie])
 
   const unifiedEmbed = sp.get('unifiedEmbed') === '1'
   const shareFromQuery = parseShareId(sp.get('share'))
@@ -156,6 +178,48 @@ function PersistentPlayerHostInner({
   const isStaticPage = pathNorm === '/privacy' || pathNorm === '/terms'
   /** Dev/diagnostic embed page — avoids a second hidden `YoutubePlayer` (react hydration + error 150 noise). */
   const isYoutubeEmbedDiag = pathname.startsWith('/youtube-embed-test')
+
+  const mountsPlayerChrome =
+    canPlay &&
+    !isMoviePlayerRoute &&
+    !isFilmMusicLanding &&
+    !isStaticPage &&
+    !isYoutubeEmbedDiag
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return
+    const browserHost =
+      typeof window !== 'undefined' ? window.location.host : '(ssr)'
+    console.info('[soundings-host]', {
+      pathname,
+      browserHost,
+      mountsPlayerChrome,
+      youtubeLocked_hostYoutubeOnlyProp: youtubeLocked,
+      youtubeModeServerProp_noSpotifyLatch: youtubeModeFromCookie,
+      spotifyAccessTokenPropPresent: Boolean(accessToken),
+      canPlay,
+      isFilmMusicLanding,
+      queryYoutube: sp.get('youtube') === '1',
+      querySplash: sp.get('splash'),
+      spotifyLoginStrip: sp.get('spotify_login') === '1',
+      youtubeLoginStrip: sp.get('youtube_login') === '1',
+    })
+    // Only appears if you intentionally use LAN bind (`npm run dev:network`) and open 0.0.0.0 in the browser.
+    if (browserHost.startsWith('0.0.0.0')) {
+      console.warn(
+        '[soundings-host] location.host is 0.0.0.0 — use http://localhost:3000 for Spotify cookies/OAuth alignment (or stick to `npm run dev`, not dev:network).',
+      )
+    }
+  }, [
+    pathname,
+    mountsPlayerChrome,
+    youtubeLocked,
+    youtubeModeFromCookie,
+    accessToken,
+    canPlay,
+    isFilmMusicLanding,
+    sp,
+  ])
 
   if (!canPlay || isMoviePlayerRoute || isFilmMusicLanding || isStaticPage || isYoutubeEmbedDiag) {
     return <>{children}</>

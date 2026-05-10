@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { trailerVisionStorage, TRAILER_VISION_RESET_DATA_KEYS } from "@/app/lib/platform";
 import { ACTIVE_CHANNEL_KEY, CHANNELS_KEY } from "../lib/channel";
@@ -329,12 +330,13 @@ export default function SettingsPage() {
             </p>
           </div>
           <div>
-            <a
+            <Link
               href="/trailer-visions/logs"
+              prefetch={false}
               className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
             >
               Open log viewer
-            </a>
+            </Link>
           </div>
         </div>
 

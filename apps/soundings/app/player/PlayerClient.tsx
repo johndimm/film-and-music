@@ -15,6 +15,7 @@ const PlayerConstellationsEmbed = dynamic(() => import('./PlayerConstellationsEm
 import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
+import { extractYoutubeVideoId, extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
 import { isYoutubeResolveTestClientEnabled } from '@/app/lib/youtubeResolveTestClient'
 import { getYoutubeResolveTestFixtureSuggestion } from '@/app/lib/youtubeResolveTestDefaults'
 import YoutubePlayer, { type YoutubePlayerHandle } from './YoutubePlayer'
@@ -63,6 +64,12 @@ function readSettingsGlobalNotes(): string {
     }
   } catch {}
   return ''
+}
+
+function trackLooksYoutube(track: { source?: unknown; videoId?: unknown }): boolean {
+  if ((track.source as string) === 'youtube') return true
+  const v = track.videoId
+  return typeof v === 'string' && v.trim() !== ''
 }
 const CHANNELS_STORAGE_KEY = soundingsStorage.channels
 const ACTIVE_CHANNEL_KEY = soundingsStorage.activeChannel
@@ -522,6 +529,121 @@ function computeRecordedListenStars(
 /** Stable dedup key that works for both Spotify (uses uri) and YouTube (uses id). */
 function trackPlayKey(track: { uri?: string; id: string }): string {
   return track.uri ?? track.id
+}
+
+/** Match a now-playing row to Heard (uri/id when present, else exact title + artist). */
+function trackMatchesHeardEntry(
+  track: { uri?: string | null; id: string; name: string; artist: string },
+  entry: { track: string; artist: string; uri?: string | null },
+): boolean {
+  const tk = trackPlayKey({ id: track.id, uri: track.uri ?? undefined })
+  const eu = (entry.uri ?? '').trim()
+  if (eu && tk === eu) return true
+  const entrySid = normalizeSpotifyTrackId(entry.uri ?? undefined)
+  const trackSid = normalizeSpotifyTrackId(track.uri ?? undefined)
+  if (entrySid && trackSid && entrySid === trackSid) return true
+  return entry.track === track.name && entry.artist === track.artist
+}
+
+function trackAppearsInDjHeard(
+  track: { uri?: string | null; id: string; name: string; artist: string },
+  heard: HistoryEntry[],
+): boolean {
+  return heard.some(e => trackMatchesHeardEntry(track, e))
+}
+
+/** Most recent matching Heard row with a numeric ★ rating (session merge / UI hydrate). */
+function findPriorStarsFromHeard(
+  track: { uri?: string | null; id: string; name: string; artist: string } | undefined,
+  heard: HistoryEntry[],
+): number | null {
+  if (!track) return null
+  for (let i = heard.length - 1; i >= 0; i--) {
+    const e = heard[i]
+    if (!trackMatchesHeardEntry(track, e)) continue
+    const s = e.stars
+    if (typeof s === 'number') return s
+  }
+  return null
+}
+
+function listenEventMatchesTrack(
+  ev: ListenEvent,
+  track: { uri?: string | null; id: string; name: string; artist: string },
+): boolean {
+  return trackMatchesHeardEntry(track, { track: ev.track, artist: ev.artist, uri: undefined })
+}
+
+function normSuggestionSearch(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+/** Same shape as llm.ts `keyFromAlreadyHeard`: align LLM search lines with rated Heard rows. */
+function heardKeyFromSuggestionSearch(search: string): string {
+  const raw = normSuggestionSearch(search)
+  const idx = raw.lastIndexOf(' by ')
+  if (idx > 0) {
+    return `${raw.slice(0, idx).replace(/^"|"$/g, '').trim()}|${raw.slice(idx + 4).trim()}`
+  }
+  return `${raw.replace(/^"|"$/g, '').trim()}|`
+}
+
+function heardKeyFromHistoryEntry(e: Pick<HistoryEntry, 'track' | 'artist'>): string {
+  return `${normSuggestionSearch(e.track ?? '')}|${normSuggestionSearch(e.artist ?? '')}`
+}
+
+type HeardLlmBatchSets = {
+  spotifyIds: Set<string>
+  youtubeIds: Set<string>
+  titleArtistKeys: Set<string>
+  canonicalSearches: Set<string>
+}
+
+function buildHeardLlmBatchSets(heard: HistoryEntry[]): HeardLlmBatchSets {
+  const spotifyIds = new Set<string>()
+  const youtubeIds = new Set<string>()
+  const titleArtistKeys = new Set<string>()
+  const canonicalSearches = new Set<string>()
+  for (const e of heard) {
+    const sid = normalizeSpotifyTrackId(e.uri ?? undefined)
+    if (sid) spotifyIds.add(sid)
+    const yid = extractYoutubeVideoIdLoose(e.uri ?? '')
+    if (yid) youtubeIds.add(yid)
+    titleArtistKeys.add(heardKeyFromHistoryEntry(e))
+    const t = normSuggestionSearch(e.track ?? '')
+    const a = normSuggestionSearch(e.artist ?? '')
+    if (t && a) {
+      canonicalSearches.add(`${t} by ${a}`)
+      canonicalSearches.add(`${a} - ${t}`)
+      canonicalSearches.add(`${t} — ${a}`)
+      canonicalSearches.add(`${a} — ${t}`)
+    }
+  }
+  return { spotifyIds, youtubeIds, titleArtistKeys, canonicalSearches }
+}
+
+function llmSuggestionMatchesHeard(s: SongSuggestion, sets: HeardLlmBatchSets): boolean {
+  const sid = normalizeSpotifyTrackId(s.spotifyId)
+  if (sid && sets.spotifyIds.has(sid)) return true
+  let yid = s.youtubeVideoId ? extractYoutubeVideoId(s.youtubeVideoId) : null
+  if (!yid) yid = extractYoutubeVideoIdLoose(s.search)
+  if (yid && sets.youtubeIds.has(yid)) return true
+  const k = heardKeyFromSuggestionSearch(s.search)
+  if (k !== '|' && sets.titleArtistKeys.has(k)) return true
+  if (sets.canonicalSearches.has(normSuggestionSearch(s.search))) return true
+  return false
+}
+
+/** Drop LLM rows that obviously match Heard before we spend resolve quota. */
+function filterLlmSuggestionsAgainstHeard(suggestions: SongSuggestion[], heard: HistoryEntry[]): SongSuggestion[] {
+  if (heard.length === 0 || suggestions.length === 0) return suggestions
+  const sets = buildHeardLlmBatchSets(heard)
+  const out = suggestions.filter(s => !llmSuggestionMatchesHeard(s, sets))
+  const dropped = suggestions.length - out.length
+  if (dropped > 0) {
+    console.info('[dj-queue]', `LLM batch: removed ${dropped}/${suggestions.length} suggestion(s) already in Heard`)
+  }
+  return out
 }
 
 function formatMs(ms: number): string {
@@ -1006,6 +1128,8 @@ export default function PlayerClient({
   const newChannelRetainPlaybackRef = useRef<{ channelId: string; holdKey: string } | null>(null)
   const channelSwitchingRef = useRef(false)
   const deviceIdRef = useRef<string | null>(null)
+  /** `undefined` = first observer run; detects null→device transition to replay through Web Playback. */
+  const prevSdkDeviceObserveRef = useRef<string | null | undefined>(undefined)
   const lastPlayedUriRef = useRef<string | null>(null)
   const trackPlayStartAtRef = useRef<number>(0)
   const expectedTrackEndAtRef = useRef<number>(0)
@@ -1279,10 +1403,10 @@ export default function PlayerClient({
     fetchingRef.current = false
     resolvingRef.current = false   // discard any in-flight resolve from the previous channel
     lastPlayedUriRef.current = null
-    playedUrisRef.current = new Set()
     fetchGenRef.current++
 
     const deduped = dedupeHistory(ch.cardHistory)
+    playedUrisRef.current = new Set(deduped.map(e => (e.uri ?? '').trim()).filter(Boolean))
     setCardHistory(deduped); cardHistoryRef.current = deduped
     setSessionHistory(ch.sessionHistory); sessionHistoryRef.current = ch.sessionHistory
     setPriorProfile(ch.profile); priorProfileRef.current = ch.profile
@@ -1328,7 +1452,13 @@ export default function PlayerClient({
     setSettingsDirty(false)
 
     if (!useRetainPlayback) {
-      const nextSource = youtubeOnly ? 'youtube' : (ch.source ?? readSettingsSource())
+      const persistedGlobal = readSettingsSource()
+      let nextSource: PlaybackSource = youtubeOnly ? 'youtube' : (ch.source ?? persistedGlobal)
+      // Channel exports can stamp `source: 'youtube'` on metadata while `earprint-settings` is still
+      // spotify — never let that override the persisted tab selection on a Spotify session.
+      if (!youtubeOnly && persistedGlobal === 'spotify' && ch.source === 'youtube') {
+        nextSource = 'spotify'
+      }
       setSource(nextSource)
       sourceRef.current = nextSource
     }
@@ -1713,14 +1843,14 @@ export default function PlayerClient({
         source: cur.track.source as PlaybackSource | undefined,
       }
       const base = cardHistoryRef.current
-      const existingIdx = base.findIndex(e => e.track === cur.track.name && e.artist === cur.track.artist)
+      const existingIdx = base.findIndex(e => trackMatchesHeardEntry(cur.track, e))
       const newHistory = existingIdx !== -1
         ? base.map((e, i) => i === existingIdx ? historyEntry : e)
         : dedupeHistory([...base, historyEntry])
       setCardHistory(newHistory)
       cardHistoryRef.current = newHistory
       const newSession = existingIdx !== -1
-        ? sessionHistoryRef.current.map(e => e.track === cur.track.name && e.artist === cur.track.artist ? event : e)
+        ? sessionHistoryRef.current.map(e => listenEventMatchesTrack(e, cur.track) ? event : e)
         : [...sessionHistoryRef.current, event]
       setSessionHistory(newSession)
       sessionHistoryRef.current = newSession
@@ -1781,7 +1911,10 @@ export default function PlayerClient({
     if (loadingStartupChannels) return
     setStartupChannelsError(null)
     setLoadingStartupChannels(true)
-    const src: PlaybackSource = youtubeOnly ? 'youtube' : sourceRef.current
+    // Use `source` state, not `sourceRef` — the ref only updates in an effect and commonly lags
+    // one tick behind the Settings tab, so "Load startup channels" was fetching YouTube JSON
+    // while the UI already showed Spotify.
+    const src: PlaybackSource = youtubeOnly ? 'youtube' : source
     try {
       const r = await fetch(`/api/startup-channels?source=${src}`, {
         credentials: 'same-origin',
@@ -1833,7 +1966,7 @@ export default function PlayerClient({
     } finally {
       setLoadingStartupChannels(false)
     }
-  }, [loadingStartupChannels, youtubeOnly, loadChannelIntoState])
+  }, [loadingStartupChannels, youtubeOnly, source, loadChannelIntoState])
 
   /**
    * Build a URL the current user can send to others.
@@ -2240,6 +2373,16 @@ export default function PlayerClient({
     sourceRef.current = source
   }, [source])
 
+  useEffect(() => {
+    if (isGuideDemo) return
+    const label = youtubeOnly
+      ? 'YouTube-only host (youtubeOnly)'
+      : source === 'youtube'
+        ? 'YouTube tab'
+        : 'Spotify tab'
+    console.info('[playback-mode]', label, { youtubeOnly, source })
+  }, [source, youtubeOnly, isGuideDemo])
+
   /**
    * When the active playback source changes (user flipped it in Settings, or a channel with a
    * different `source` was selected), silence the OTHER engine. Without this, the Spotify Web
@@ -2344,6 +2487,9 @@ export default function PlayerClient({
       setSettingsHydrated(true)
       return
     }
+    // Must run before readSettingsSource() — OAuth returns /player?spotify_login=1 and this writes
+    // `source: spotify` to localStorage before we hydrate react state from storage.
+    applyFreshLoginIfNeeded()
     const s = loadSettings()
     skipNextDirtyRef.current = true
     setNotes(s.notes ?? '')
@@ -2356,7 +2502,24 @@ export default function PlayerClient({
     setPopularity(s.popularity ?? 50)
     setDiscovery(s.discovery ?? 50)
     setProvider(s.provider ?? 'deepseek')
-    setSource(youtubeOnly ? 'youtube' : readSettingsSource())
+    let tabAfterLs: PlaybackSource = youtubeOnly ? 'youtube' : readSettingsSource()
+    // Persisted `source: youtube` with a Spotify cookie + Spotify-capable host is almost always stale
+    // (prior YouTube session / buggy import). Playback tab defaults to Spotify; user can flip in-app.
+    if (
+      !youtubeOnly &&
+      tabAfterLs === 'youtube' &&
+      typeof initialAccessToken === 'string' &&
+      initialAccessToken.trim().length > 0
+    ) {
+      tabAfterLs = DEFAULT_PLAYBACK_SOURCE
+      try {
+        localStorage.setItem(
+          SETTINGS_STORAGE_KEY,
+          JSON.stringify({ ...s, source: 'spotify' satisfies PlaybackSource }),
+        )
+      } catch {}
+    }
+    setSource(tabAfterLs)
     setCommittedSettings({
       notes: s.notes ?? '',
       genreText: s.genreText ?? '',
@@ -2385,6 +2548,29 @@ export default function PlayerClient({
     setSettingsHydrated(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /** Storage scrub runs in `applyFreshLoginIfNeeded` (includes `?splash=spotify`); strip param + sync react state. */
+  useEffect(() => {
+    if (isGuideDemo || youtubeOnly || typeof window === 'undefined') return
+    if (searchParams.get('splash') !== 'spotify') return
+
+    skipNextDirtyRef.current = true
+    setSource('spotify')
+    try {
+      const s = loadSettings()
+      localStorage.setItem(
+        SETTINGS_STORAGE_KEY,
+        JSON.stringify({ ...s, source: 'spotify' satisfies PlaybackSource }),
+      )
+    } catch {
+      /* ignore */
+    }
+
+    const u = new URL(window.location.href)
+    u.searchParams.delete('splash')
+    const q = u.searchParams.toString()
+    window.history.replaceState(null, '', `${u.pathname}${q ? `?${q}` : ''}${u.hash}`)
+  }, [searchParams, youtubeOnly, isGuideDemo])
 
   /** YouTube-only mode must never show Spotify cooldown UI (prop can flip true one tick after `?youtube=1`). */
   useEffect(() => {
@@ -2437,11 +2623,22 @@ export default function PlayerClient({
   useEffect(() => {
     if (isGuideDemo) return
     if (typeof window === 'undefined') return
-    // Must run BEFORE loadChannels(): if the URL carries `?spotify_login=1` or
-    // `?youtube_login=1`, this scrubs wrong-source `currentCard` / `queue` items from
-    // storage so the hydration below does not boot the player with stale data. The helper
-    // is idempotent (module-level flag) so it's safe to call from multiple places.
-    applyFreshLoginIfNeeded()
+    const hydrateQp = new URLSearchParams(window.location.search)
+    // OAuth / splash URL markers scrub via `applyFreshLoginIfNeeded` only (not every mount).
+    const freshlyLoggedAs = applyFreshLoginIfNeeded()
+    // `useSearchParams` can briefly lag behind the real URL on soft navigation — settings must not
+    // read stale `source` before splash sync (see sibling effect). Use `window.location`.
+    try {
+      if (!youtubeOnly && hydrateQp.get('splash') === 'spotify') {
+        const s = loadSettings()
+        localStorage.setItem(
+          SETTINGS_STORAGE_KEY,
+          JSON.stringify({ ...s, source: 'spotify' satisfies PlaybackSource }),
+        )
+      }
+    } catch {
+      /* ignore */
+    }
     try {
       localStorage.removeItem(soundingsStorage.legacyFactoryChannels)
     } catch {}
@@ -2459,6 +2656,24 @@ export default function PlayerClient({
       (oneChannel &&
         ((oneChannel.id === ALL_CHANNEL_ID && isEmptyChannel(oneChannel)) ||
           (oneChannel.isAutoNamed && isEmptyChannel(oneChannel))))
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[soundings-hydrate]', {
+        path: `${window.location.pathname}${window.location.search}`,
+        browserHost: window.location.host,
+        youtubeOnly,
+        freshlyLoggedAs,
+        urlHasSplashSpotify: hydrateQp.get('splash') === 'spotify',
+        persistedSettingsSource: readSettingsSource(),
+        channelsLoaded: chs.length,
+        isBlankSlate,
+      })
+      if (window.location.host.startsWith('0.0.0.0')) {
+        console.warn(
+          '[soundings-hydrate] host is 0.0.0.0 — open http://localhost:3000 (default `npm run dev`) so Spotify OAuth/cookies stay consistent.',
+        )
+      }
+    }
 
     const finalizeChannelHydration = (chsArg: Channel[], activeIdArg: string, doEnsureAllPersist: boolean) => {
       let chsLocal = chsArg
@@ -2481,7 +2696,13 @@ export default function PlayerClient({
         (chsLocal[0].cardHistory?.length ?? 0) === 0 &&
         !chsLocal[0].currentCard
       ) {
-        const activeSource = youtubeOnly ? 'youtube' : (active.source ?? readSettingsSource())
+        // Must match persisted settings, not channel import `active.source`: `finalizeChannelHydration`
+        // doesn't call `setSource`, so a stale channel-level `youtube` stamp would seed a YouTube
+        // starter card while the Settings tab stayed on Spotify (`readSettingsSource` / splash).
+        const activeSource: PlaybackSource = youtubeOnly ? 'youtube' : readSettingsSource()
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[soundings-starter-card]', { seededFor: activeSource, youtubeOnly })
+        }
         active.currentCard = getMostPopularCard(activeSource)
         saveChannels(chsLocal)
       }
@@ -2625,6 +2846,13 @@ export default function PlayerClient({
         try {
           // Per-source factory file first (falls back to the shared file server-side when missing).
           const factorySrc = youtubeOnly ? 'youtube' : readSettingsSource()
+          if (process.env.NODE_ENV !== 'production') {
+            console.info('[soundings-factory-fetch]', {
+              requestedSourceQuery: factorySrc,
+              youtubeOnly,
+              persistedSettingsSource: readSettingsSource(),
+            })
+          }
           const r = await fetch(`/api/factory-defaults?source=${factorySrc}`, { credentials: 'same-origin', cache: 'no-store' })
           const data = r.ok ? await r.json() : null
           if (
@@ -3154,10 +3382,74 @@ export default function PlayerClient({
   }, [])
 
   // ── Play a track ──────────────────────────────────────────────────────────
+  const applySpotifyPlaybackSuccessUi = useCallback((uri: string, positionMs: number | undefined) => {
+    const card = currentCardRef.current
+    if (card?.track.uri === uri && (card.track.source as string) !== 'youtube') {
+      const dm = card.track.durationMs
+      if (Number.isFinite(dm) && dm > 0) {
+        durationRef.current = dm
+      }
+      const startMs = typeof positionMs === 'number' && positionMs > 0 ? positionMs : 0
+      sliderRef.current = startMs
+      setSliderPosition(startMs)
+      isPausedRef.current = false
+      trackPlayStartAtRef.current = Date.now()
+      expectedTrackEndAtRef.current = Date.now() + (durationRef.current - sliderRef.current)
+    }
+  }, [])
+
   const playTrack = useCallback(async (uri: string, positionMs?: number) => {
     if (isGuideDemo) return
     let dId = deviceIdRef.current
-    if (!dId) return
+
+    /** Web Playback SDK not ready (slow init, ad-block script, Premium gate) — Still try Spotify REST on the user's *active* device (phone/desktop app open). */
+    if (!dId) {
+      const body: Record<string, unknown> = { uri }
+      if (typeof positionMs === 'number' && positionMs > 0) {
+        body.position_ms = Math.floor(positionMs)
+      }
+      console.info('[playTrack] no browser device yet — PUT /api/play-track (Spotify active device)')
+      let res = await fetch('/api/play-track', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.status === 401) {
+        const data = await fetch('/api/spotify/token').then(r => r.json()).catch(() => ({}))
+        if ((data as { accessToken?: string }).accessToken) {
+          accessTokenRef.current = (data as { accessToken: string }).accessToken
+          res = await fetch('/api/play-track', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+        }
+      }
+      if (!res.ok) {
+        const parsed = await res.json().catch(() => null) as
+          | { error?: string; status?: number; body?: string }
+          | null
+        const sniff = `${parsed?.body ?? ''}`
+        let hint =
+          'Open the Spotify app on your phone or computer, press play once there, then try Soundings again (or wait for “Soundings” to appear under devices).'
+        if (parsed?.status === 404 || sniff.includes('NO_ACTIVE_DEVICE') || sniff.includes('Device not found')) {
+          hint = 'No active Spotify device. Open Spotify on another device and start playback, then retry.'
+        } else if (parsed?.status === 403 || sniff.toLowerCase().includes('premium')) {
+          hint =
+            'In-browser Web Playback requires Spotify Premium; the active-device fallback may still work from the Spotify app on your phone/desktop.'
+        }
+        const msg = `Spotify (${parsed?.status ?? res.status})${sniff ? ` — ${sniff.slice(0, 180)}` : ''}. ${hint}`
+        console.warn('[playTrack] active-device fallback failed', msg)
+        setPlayResponse(msg)
+      } else {
+        setPlayResponse(null)
+        applySpotifyPlaybackSuccessUi(uri, positionMs)
+      }
+      return
+    }
+
     const body =
       typeof positionMs === 'number' && positionMs > 0
         ? { uris: [uri], position_ms: Math.floor(positionMs) }
@@ -3216,25 +3508,15 @@ export default function PlayerClient({
       setPlayResponse(msg)
     } else {
       setPlayResponse(null)
-      const card = currentCardRef.current
-      if (card?.track.uri === uri && (card.track.source as string) !== 'youtube') {
-        const dm = card.track.durationMs
-        if (Number.isFinite(dm) && dm > 0) {
-          durationRef.current = dm
-        }
-        const startMs = typeof positionMs === 'number' && positionMs > 0 ? positionMs : 0
-        sliderRef.current = startMs
-        setSliderPosition(startMs)
-        // SDK may delay player_state_changed; allow local progress until it arrives.
-        isPausedRef.current = false
-        trackPlayStartAtRef.current = Date.now()
-        expectedTrackEndAtRef.current = Date.now() + (durationRef.current - sliderRef.current)
-      }
+      applySpotifyPlaybackSuccessUi(uri, positionMs)
     }
-  }, [isGuideDemo])
+  }, [applySpotifyPlaybackSuccessUi, isGuideDemo])
 
   const togglePlayback = useCallback(() => {
-    const ytTrack = (currentCardRef.current?.track.source as string) === 'youtube'
+    const cur = currentCardRef.current
+    let ytTrack = !!cur && trackLooksYoutube(cur.track)
+    // Stale YouTube row can remain in state briefly after switching to Spotify tab — drive Spotify SDK.
+    if (ytTrack && !youtubeOnly && sourceRef.current === 'spotify') ytTrack = false
     console.info('[play] togglePlayback', {
       isGuideDemo,
       youtubeTrack: ytTrack,
@@ -3262,15 +3544,38 @@ export default function PlayerClient({
     }
     if (playbackState?.paused) playerRef.current?.resume()
     else playerRef.current?.pause()
-  }, [isGuideDemo, playbackState])
+  }, [isGuideDemo, playbackState, youtubeOnly])
 
   // Play when currentCard changes
   useEffect(() => {
     if (isGuideDemo) return
     if (!currentCard) return
-    const isYoutube = (currentCard.track.source as string) === 'youtube'
-    // YouTube does not use the Spotify Web Playback SDK, so the deviceId gate must not block it.
-    if (!isYoutube && !deviceId) return
+    // Spotify tab: skip stale YouTube currentCard/heading-of-queue rows (LS scrub can race hydration).
+    if (!youtubeOnly && source === 'spotify' && trackLooksYoutube(currentCard.track)) {
+      console.warn('[play] skipping YouTube card while Spotify source is selected; dequeuing past YouTube rows')
+      setPlayGeneration(g => g + 1)
+      lastPlayedUriRef.current = null
+      let q = [...queueRef.current]
+      while (q.length > 0) {
+        const [head, ...tail] = q
+        if (!trackLooksYoutube(head.track)) {
+          currentCardRef.current = head
+          setCurrentCard(head)
+          queueRef.current = tail
+          setQueue(tail)
+          return
+        }
+        q = tail
+      }
+      currentCardRef.current = null
+      setCurrentCard(null)
+      queueRef.current = []
+      setQueue([])
+      return
+    }
+
+    const isYoutube = trackLooksYoutube(currentCard.track)
+    // Spotify: prefer Web Playback when deviceId exists; otherwise playTrack falls back to the user's active Spotify device.
     const key = trackPlayKey(currentCard.track)
     if (key === lastPlayedUriRef.current) return
     lastPlayedUriRef.current = key
@@ -3328,15 +3633,21 @@ export default function PlayerClient({
     deviceId,
     isGuideDemo,
     playGeneration,
+    youtubeOnly,
+    source,
   ])
 
-  // Reset star rating when song changes
   useEffect(() => {
-    setCurrentStars(null)
-    currentStarsRef.current = null
-    autoAdvanceRef.current = false
-    expectedTrackEndAtRef.current = 0
-  }, [currentCard?.track.uri ?? currentCard?.track.id])
+    if (isGuideDemo || youtubeOnly) return
+    const prev = prevSdkDeviceObserveRef.current
+    prevSdkDeviceObserveRef.current = deviceId ?? null
+    if (prev === undefined) return
+    if (!prev && deviceId) {
+      console.info('[play] Web Playback ready — replaying onto browser «Soundings» device')
+      lastPlayedUriRef.current = null
+      setPlayGeneration(g => g + 1)
+    }
+  }, [deviceId, isGuideDemo, youtubeOnly])
 
   // Seed duration from Spotify track metadata before the Web Playback SDK reports duration (often 0).
   useEffect(() => {
@@ -3403,6 +3714,21 @@ export default function PlayerClient({
     })
     return merged
   }, [dedupeHistory])
+
+  // Reset/auto-advance bookkeeping when the track changes; restore ★ from Heard when we already rated this recording.
+  useEffect(() => {
+    setCurrentStars(null)
+    currentStarsRef.current = null
+    autoAdvanceRef.current = false
+    expectedTrackEndAtRef.current = 0
+    const card = currentCard
+    if (!card) return
+    const prior = findPriorStarsFromHeard(card.track, getDjContextHistories().cardHistory)
+    if (prior != null) {
+      setCurrentStars(prior)
+      currentStarsRef.current = prior
+    }
+  }, [currentCard?.track.uri ?? currentCard?.track.id, getDjContextHistories])
 
   // ── LLM batch: suggestions only (no Spotify) ─────────────────────────────
   const fetchSuggestions = useCallback(
@@ -3492,17 +3818,20 @@ export default function PlayerClient({
       }
 
       const data = await res.json()
-      const suggestions: SongSuggestion[] = (data.songs ?? []).map(
-        (s: SongSuggestion) => ({
-          search: s.search,
-          reason: s.reason,
-          category: s.category,
-          spotifyId: s.spotifyId,
-          youtubeVideoId: s.youtubeVideoId,
-          coords: s.coords,
-          composed: s.composed,
-          performer: s.performer,
-        })
+      const suggestions: SongSuggestion[] = filterLlmSuggestionsAgainstHeard(
+        (data.songs ?? []).map(
+          (s: SongSuggestion) => ({
+            search: s.search,
+            reason: s.reason,
+            category: s.category,
+            spotifyId: s.spotifyId,
+            youtubeVideoId: s.youtubeVideoId,
+            coords: s.coords,
+            composed: s.composed,
+            performer: s.performer,
+          }),
+        ),
+        djCardHistory,
       )
       console.info('fetchSuggestions LLM batch', suggestions.length, suggestions.map(s => s.search))
       console.info('fetchSuggestions profile field:', data.profile ? data.profile.slice(0, 80) + '…' : '(none)')
@@ -3533,6 +3862,10 @@ export default function PlayerClient({
     if (ytResolveTest) {
       console.info(DJQ, 'resolveOneSuggestion: using /api/youtube-resolve-test (fixture, no search quota)')
     }
+    const bodySource = sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[soundings-resolve]', { endpoint: resolveUrl.split('?')[0], source: bodySource })
+    }
     const res = await fetch(resolveUrl, {
       method: 'POST',
       credentials: 'include',
@@ -3543,7 +3876,7 @@ export default function PlayerClient({
         accessToken: accessTokenRef.current,
         // Prefer GET /v1/tracks?ids= when LLM supplies an id (not Search); fall back to search if no id or lookup fails.
         forceTextSearch: !normalizeSpotifyTrackId(s.spotifyId),
-        source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
+        source: bodySource,
         // Only advertise test mode to the server when we're actually on YouTube.
         // Otherwise the server's profile-only branch returns a YouTube fixture that
         // breaks Spotify playback. See comment on `ytResolveTest` above.
@@ -3605,6 +3938,7 @@ export default function PlayerClient({
   /** Resolve up to `max` suggestions in order (constraint / replace flows). Skips failed lookups. */
   const resolveSuggestionsToCards = useCallback(
     async (list: SongSuggestion[], max: number): Promise<CardState[]> => {
+      const djHeard = getDjContextHistories().cardHistory
       const out: CardState[] = []
       const seenUris = new Set<string>()
       const excludeUris = new Set<string>([
@@ -3618,7 +3952,7 @@ export default function PlayerClient({
           const card = await resolveOneSuggestion(s)
           if (!card) continue
           const u = trackPlayKey(card.track)
-          if (excludeUris.has(u) || seenUris.has(u)) continue
+          if (excludeUris.has(u) || seenUris.has(u) || trackAppearsInDjHeard(card.track, djHeard)) continue
           seenUris.add(u)
           excludeUris.add(u)
           out.push(card)
@@ -3628,7 +3962,7 @@ export default function PlayerClient({
       }
       return out
     },
-    [resolveOneSuggestion]
+    [resolveOneSuggestion, getDjContextHistories]
   )
 
   /** No Spotify search — rebuild cards from Heard when API is rate-limited. */
@@ -3770,7 +4104,8 @@ export default function PlayerClient({
           setProfile(data.profile)
         }
         if (Array.isArray(data.songs) && data.songs.length > 0) {
-          const incoming = data.songs as SongSuggestion[]
+          const incoming = filterLlmSuggestionsAgainstHeard(data.songs as SongSuggestion[], djCardHistory)
+          if (incoming.length === 0) return
           setSuggestionBuffer(prev => {
             const seen = new Set(prev.map(p => p.search))
             const merged = [...prev]
@@ -4049,6 +4384,7 @@ export default function PlayerClient({
 
   /** Pop suggestions and resolve on Spotify one-by-one until we have a track for now playing. */
   const startPlaybackFromSuggestions = useCallback(async () => {
+    const djHeard = getDjContextHistories().cardHistory
     const resolveChannelId = activeChannelIdRef.current
     while (!currentCardRef.current && suggestionBufferRef.current.length > 0) {
       if (activeChannelIdRef.current !== resolveChannelId) {
@@ -4069,13 +4405,14 @@ export default function PlayerClient({
         suggestionBufferRef.current = rest
         setSuggestionBuffer(rest)
         const played = new Set(playedUrisRef.current)
-        if (!played.has(trackPlayKey(card.track))) {
+        const tk = trackPlayKey(card.track)
+        if (!played.has(tk) && !trackAppearsInDjHeard(card.track, djHeard)) {
           currentCardRef.current = card
           setCurrentCard(card)
           console.info(DJQ, 'startPlaybackFromSuggestions: set now playing', card.track.name)
           return
         }
-        console.info(DJQ, 'startPlaybackFromSuggestions: resolved track already in played; popping', next.search.slice(0, 40))
+        console.info(DJQ, 'startPlaybackFromSuggestions: resolved track already heard/played; popping', next.search.slice(0, 40))
       } catch (e) {
         if (e instanceof RateLimitError) {
           const waitMs = (e.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
@@ -4095,10 +4432,11 @@ export default function PlayerClient({
         bufferLeft: suggestionBufferRef.current.length,
       })
     }
-  }, [resolveOneSuggestion, fillFromHeardWhenRateLimited])
+  }, [resolveOneSuggestion, fillFromHeardWhenRateLimited, getDjContextHistories])
 
   /** Resolve one suggestion at a time until queue has 3 items or buffer is empty. */
   const topUpQueueFromSuggestions = useCallback(async () => {
+    const djHeard = getDjContextHistories().cardHistory
     const resolveChannelId = activeChannelIdRef.current
     while (queueRef.current.length < 3 && suggestionBufferRef.current.length > 0) {
       if (activeChannelIdRef.current !== resolveChannelId) {
@@ -4124,7 +4462,7 @@ export default function PlayerClient({
           ...(currentCardRef.current ? [trackPlayKey(currentCardRef.current.track)] : []),
           ...queueRef.current.map(c => trackPlayKey(c.track)),
         ])
-        if (!seen.has(trackPlayKey(card.track))) {
+        if (!seen.has(trackPlayKey(card.track)) && !trackAppearsInDjHeard(card.track, djHeard)) {
           const newQ = [...queueRef.current, card]
           queueRef.current = newQ
           setQueue(newQ)
@@ -4146,7 +4484,7 @@ export default function PlayerClient({
         return
       }
     }
-  }, [resolveOneSuggestion, fillFromHeardWhenRateLimited])
+  }, [resolveOneSuggestion, fillFromHeardWhenRateLimited, getDjContextHistories])
 
   /** Outcome of batch ID promote — do not infer from isSpotifyBackoff() (stale client timer). */
   type PromoteDjResult = 'ok' | 'noop' | 'rate_limited' | 'auth_error'
@@ -4249,6 +4587,7 @@ export default function PlayerClient({
 
       recordFetch(1)
 
+      const djHeard = getDjContextHistories().cardHistory
       const seen = new Set<string>([
         ...playedUrisRef.current,
         ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
@@ -4259,7 +4598,7 @@ export default function PlayerClient({
       const cards: CardState[] = []
       for (const t of songs) {
         const u = trackPlayKey(t.track)
-        if (seen.has(u)) continue
+        if (seen.has(u) || trackAppearsInDjHeard(t.track, djHeard)) continue
         seen.add(u)
         cards.push({
           track: t.track,
@@ -4292,8 +4631,6 @@ export default function PlayerClient({
         currentCardRef.current = first
         setCurrentCard(first)
         lastPlayedUriRef.current = null
-        setCurrentStars(null)
-        currentStarsRef.current = null
         seen.add(trackPlayKey(first.track))
         restCards = afterFirst.slice(0, 3)
       }
@@ -4314,7 +4651,7 @@ export default function PlayerClient({
         bufferLeft: suggestionBufferRef.current.length,
       })
       return 'ok'
-  }, [isGuideDemo, fillFromHeardWhenRateLimited])
+  }, [isGuideDemo, fillFromHeardWhenRateLimited, getDjContextHistories])
 
   /**
    * Move DJ buffer into now playing / Up Next: batch by Spotify ID when possible, then lazy resolve.
@@ -4633,14 +4970,14 @@ export default function PlayerClient({
       source: cur.track.source as PlaybackSource | undefined,
     }
     const base = cardHistoryRef.current
-    const existingIdx = base.findIndex(e => e.track === cur.track.name && e.artist === cur.track.artist)
+    const existingIdx = base.findIndex(e => trackMatchesHeardEntry(cur.track, e))
     const newCardHistory = existingIdx !== -1
       ? base.map((e, i) => (i === existingIdx ? historyEntry : e))
       : dedupeHistory([...base, historyEntry])
     setCardHistory(newCardHistory)
     cardHistoryRef.current = newCardHistory
     const newSession = existingIdx !== -1
-      ? sessionHistoryRef.current.map(e => e.track === cur.track.name && e.artist === cur.track.artist ? event : e)
+      ? sessionHistoryRef.current.map(e => listenEventMatchesTrack(e, cur.track) ? event : e)
       : [...sessionHistoryRef.current, event]
     setSessionHistory(newSession)
     sessionHistoryRef.current = newSession
@@ -4933,21 +5270,36 @@ export default function PlayerClient({
       pendingPlaybackPositionMsRef.current = undefined
       currentCardRef.current = card
       setCurrentCard(card)
-      setCurrentStars(null)
-      currentStarsRef.current = null
+      const replayStars = typeof entry.stars === 'number' ? entry.stars : null
+      setCurrentStars(replayStars)
+      currentStarsRef.current = replayStars
     },
     [playUri]
   )
   const duration = playbackState?.duration ?? 0
 
-  // Banner reflects ONLY the active playback source's cooldown. Use `youtubeOnly` too:
-  // `youtubeLocked` flips true in an effect after `?youtube=1`, so the first paint can
-  // still have `source === 'spotify'` while Spotify backoff was hydrated from localStorage.
-  const rateLimitBannerIsYoutube = youtubeOnly || source === 'youtube'
-  const activeBackoffUntilForBanner = rateLimitBannerIsYoutube ? youtubeBackoffUntil : spotifyBackoffUntil
+  // Prefer `readSettingsSource()` over React `source` for this banner — `source` can briefly disagree with
+  // persisted `earprint-settings` during channel hydrate / Strict Mode while YouTube backoff is still warm
+  // in LS, which produced a "YouTube rate-limited…" stripe on Spotify users.
+  const persistedDjTab: PlaybackSource =
+    typeof window !== 'undefined' ? readSettingsSource() : DEFAULT_PLAYBACK_SOURCE
+  const persistedSaysSpotifyDjs = !youtubeOnly && persistedDjTab === 'spotify'
+
+  let activeBackoffUntilForBanner: number | null = null
+  let rateLimitBannerIsYoutubeCooldown = false
+
+  if (persistedSaysSpotifyDjs) {
+    activeBackoffUntilForBanner =
+      spotifyBackoffUntil && spotifyBackoffUntil > Date.now() ? spotifyBackoffUntil : null
+    rateLimitBannerIsYoutubeCooldown = false
+  } else {
+    rateLimitBannerIsYoutubeCooldown = youtubeOnly || source === 'youtube'
+    activeBackoffUntilForBanner = rateLimitBannerIsYoutubeCooldown ? youtubeBackoffUntil : spotifyBackoffUntil
+  }
+
   const spotifyStatusMessage =
     activeBackoffUntilForBanner && activeBackoffUntilForBanner > Date.now()
-      ? `${rateLimitBannerIsYoutube ? 'YouTube' : 'Spotify'} rate-limited until ${new Date(activeBackoffUntilForBanner).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+      ? `${rateLimitBannerIsYoutubeCooldown ? 'YouTube' : 'Spotify'} rate-limited until ${new Date(activeBackoffUntilForBanner).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
       : null
 
   const showLoadStarterChannelsPill =
@@ -5117,7 +5469,7 @@ export default function PlayerClient({
               type="button"
               disabled={spotifyPingInFlight}
               className="underline text-yellow-200 hover:text-yellow-50 disabled:opacity-60 disabled:cursor-wait"
-              onClick={rateLimitBannerIsYoutube ? handleYoutubePingRetry : handleSpotifyPingRetry}
+              onClick={rateLimitBannerIsYoutubeCooldown ? handleYoutubePingRetry : handleSpotifyPingRetry}
             >
               {spotifyPingInFlight ? 'Checking…' : 'Try now'}
             </button>

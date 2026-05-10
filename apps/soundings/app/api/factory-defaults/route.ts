@@ -51,6 +51,12 @@ async function readFactoryFile(file: string) {
  */
 export async function GET(request: NextRequest) {
   const src = parseSource(request.nextUrl.searchParams.get('source'))
+  if (process.env.NODE_ENV !== 'production') {
+    console.info('[soundings-api factory-defaults]', {
+      requestedSourceParam: src,
+      host: request.headers.get('host'),
+    })
+  }
   const primary = src ? sourceFile(src) : SHARED_FACTORY_FILE
   try {
     const result = await readFactoryFile(primary)

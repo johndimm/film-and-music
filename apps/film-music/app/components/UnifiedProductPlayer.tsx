@@ -8,13 +8,13 @@ import type { ChannelKind } from '@film-music/platform'
  * Next processes (ports 8000 / 3000 by default) so their bundled `@/app` resolution stays correct.
  *
  * Set in `.env.local`:
- *   NEXT_PUBLIC_SOUNDINGS_ORIGIN=http://127.0.0.1:8000
- *   NEXT_PUBLIC_TRAILER_VISION_ORIGIN=http://127.0.0.1:3000
+ *   NEXT_PUBLIC_SOUNDINGS_ORIGIN=http://localhost:8000
+ *   NEXT_PUBLIC_TRAILER_VISION_ORIGIN=http://localhost:3000
  *
  * Dev: `npm run dev:soundings` + `npm run dev:trailer-vision` alongside `npm run dev:unified`.
  */
-const DEFAULT_SOUNDINGS = 'http://127.0.0.1:8000'
-const DEFAULT_TRAILER = 'http://127.0.0.1:3000'
+const DEFAULT_SOUNDINGS = 'http://localhost:8000'
+const DEFAULT_TRAILER = 'http://localhost:3000'
 
 function buildSrc(kind: ChannelKind, channelId: string | undefined): string {
   const base =

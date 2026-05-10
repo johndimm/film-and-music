@@ -10,7 +10,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  const { uri, deviceId } = (await req.json()) as { uri?: string; deviceId?: string | null }
+  const { uri, deviceId, position_ms } = (await req.json()) as {
+    uri?: string
+    deviceId?: string | null
+    position_ms?: number
+  }
   if (!uri) {
     return NextResponse.json({ error: 'missing_parameters' }, { status: 400 })
   }
@@ -21,13 +25,18 @@ export async function POST(req: NextRequest) {
       ? `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`
       : 'https://api.spotify.com/v1/me/player/play'
 
+  const payload: Record<string, unknown> = { uris: [uri] }
+  if (typeof position_ms === 'number' && Number.isFinite(position_ms) && position_ms > 0) {
+    payload.position_ms = Math.floor(position_ms)
+  }
+
   const response = await fetch(playUrl, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ uris: [uri] }),
+    body: JSON.stringify(payload),
   })
 
   if (!response.ok) {

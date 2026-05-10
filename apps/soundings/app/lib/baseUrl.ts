@@ -13,3 +13,34 @@ export function getBaseUrl(): string {
   }
   return ''
 }
+
+function loopbackHostname(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+  )
+}
+
+/**
+ * Uses `req.nextUrl.origin` for same-port loopback redirects so browsing `localhost` is not
+ * snapped to `127.0.0.1` (or vice versa) when `SPOTIFY_REDIRECT_URI` still uses the other host.
+ * Non-loopback stays on env origin for stable production URLs.
+ */
+export function preferredRedirectOrigin(requestOrigin: string): string {
+  const fromEnv = getBaseUrl()
+  if (!fromEnv) return requestOrigin
+  try {
+    const reqUrl = new URL(requestOrigin)
+    const envUrl = new URL(fromEnv)
+    const sameLoopbackPorts =
+      loopbackHostname(reqUrl.hostname) &&
+      loopbackHostname(envUrl.hostname) &&
+      reqUrl.port === envUrl.port
+    if (sameLoopbackPorts) return requestOrigin
+  } catch {
+    // fall through to env origin
+  }
+  return fromEnv
+}

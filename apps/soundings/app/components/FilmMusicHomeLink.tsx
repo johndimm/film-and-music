@@ -10,7 +10,7 @@ const linkClass: Record<Variant, string> = {
 
 export default function FilmMusicHomeLink({ variant }: { variant: Variant }) {
   return (
-    <Link href="/" title="Home" className={`shrink-0 transition-colors ${linkClass[variant]}`}>
+    <Link prefetch={false} href="/" title="Home" className={`shrink-0 transition-colors ${linkClass[variant]}`}>
       <Home size={15} />
     </Link>
   )

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { soundingsStorage } from '@/app/lib/platform'
-import { getBaseUrl } from '@/app/lib/baseUrl'
+import { preferredRedirectOrigin } from '@/app/lib/baseUrl'
 
 const YOUTUBE_MODE_COOKIE = soundingsStorage.youtubeModeCookie
 
 export async function GET(req: NextRequest) {
-  const base = getBaseUrl() || req.nextUrl.origin
+  const base = preferredRedirectOrigin(req.nextUrl.origin)
   const target = new URL('/player', base)
   // Symmetric with the Spotify callback's `?spotify_login=1`: signals to the client that
   // this is a fresh YouTube login, so leftover Spotify-era localStorage (source field,

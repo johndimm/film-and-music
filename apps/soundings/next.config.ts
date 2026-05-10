@@ -35,12 +35,12 @@ const nextConfig: NextConfig = {
    * not `127.0.0.1:3000`, or alternate-host requests stay blocked.
    * @see https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
    */
-  allowedDevOrigins: ['127.0.0.1'],
+  allowedDevOrigins: ['localhost', '127.0.0.1'],
 
   outputFileTracingRoot: repoRoot,
 
   async redirects() {
-    return [{ source: '/logs', destination: '/trailer-visions/logs', permanent: false }]
+    return [{ source: '/logs', destination: '/player/logs', permanent: false }]
   },
 
   ...(process.env.NODE_ENV === 'development'

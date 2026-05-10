@@ -11,7 +11,7 @@
         "dev",
         "--webpack",
         "-H",
-        "127.0.0.1",
+        "localhost",
         "-p",
         "3000"
       ],
@@ -23,7 +23,7 @@
       "name": "② Chrome: PlayerClient + client code (run ① first, or npm run dev)",
       "type": "pwa-chrome",
       "request": "launch",
-      "url": "http://127.0.0.1:3000/player",
+      "url": "http://localhost:3000/player",
       "webRoot": "${workspaceFolder}",
       "sourceMaps": true,
       "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
