@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { splitDjSystemPromptForLogUi } from '@/app/lib/djSystemPromptLogGuide'
 
 type FileRef = {
   app: string
@@ -83,10 +84,51 @@ function formatLlmResponseForDisplay(raw: string): string {
 const preBox =
   'w-full max-w-full overflow-x-auto rounded-lg border border-zinc-800/90 bg-black/40 px-4 py-3 font-mono text-[15px] leading-relaxed text-zinc-200 whitespace-pre-wrap break-words'
 
-/**
- * Full-width stack: system (collapsible), user prompt, response — after other page content;
- * uses document scroll instead of nested max-height panels.
- */
+/** Soundings DJ system prompt: annotated sections + margin commentary (fallback: one block). */
+function AnnotatedDjSystemPrompt({
+  raw,
+  cap,
+}: {
+  raw: string
+  cap: (s: string, label: string) => string
+}) {
+  const sections = useMemo(() => splitDjSystemPromptForLogUi(raw), [raw])
+  return (
+    <section className="min-w-0 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">System prompt</h3>
+        <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+          Shown expanded. When this matches the Soundings music DJ prompt, sections are split and the right column explains
+          each block. Other apps (or old logs) appear as one piece with a short note.
+        </p>
+      </div>
+      <div className="space-y-4">
+        {sections.map((s, i) => (
+          <div
+            key={i}
+            className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/70 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]"
+          >
+            <div className="border-b border-zinc-800 bg-zinc-900/95 px-3 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Block {i + 1}</span>
+              <span className="ml-2 text-xs font-medium text-zinc-300">{s.label}</span>
+            </div>
+            <div className="grid min-h-0 min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_min(320px,40%)] lg:divide-x lg:divide-zinc-800">
+              <pre className="max-w-full overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-zinc-200 whitespace-pre-wrap break-words">
+                {cap(s.body, `System §${i + 1}`) || '—'}
+              </pre>
+              <aside className="bg-zinc-900/40 p-4 lg:min-h-full">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-500/90">Margin note</p>
+                <p className="mt-1.5 text-sm leading-snug text-zinc-400">{s.note}</p>
+              </aside>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/** Full-width stack: annotated system prompt, user prompt, response — page scroll, no collapsible burying system text. */
 function LogReadableStack({ event }: { event: LlmEvent | null }) {
   if (!event) {
     return <p className="text-base text-zinc-500">No log loaded — pick a category above or choose a file.</p>
@@ -104,24 +146,42 @@ function LogReadableStack({ event }: { event: LlmEvent | null }) {
         <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-200">{err}</p>
       ) : null}
 
-      {sys ? (
-        <details className="min-w-0 group">
-          <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-wide text-zinc-500 hover:text-zinc-400">
-            <span className="group-open:hidden">Show system prompt ▸</span>
-            <span className="hidden group-open:inline">Hide system prompt ▾</span>
-          </summary>
-          <pre className={`mt-3 ${preBox}`}>{capForView(sys, 'System')}</pre>
-        </details>
-      ) : null}
+      {sys ? <AnnotatedDjSystemPrompt raw={sys} cap={capForView} /> : null}
 
-      <section className="min-w-0 space-y-2">
+      <section className="min-w-0 space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">User prompt</h3>
-        <pre className={preBox}>{capForView(usr, 'User') || '—'}</pre>
+        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/70">
+          <div className="grid min-h-0 min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_min(280px,38%)] lg:divide-x lg:divide-zinc-800">
+            <pre className={`${preBox} border-0 rounded-none shadow-none bg-black/35`}>{capForView(usr, 'User') || '—'}</pre>
+            <aside className="bg-zinc-900/40 p-4 lg:min-h-full">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-500/90">Margin note</p>
+              <p className="mt-1.5 text-sm leading-snug text-zinc-400">
+                Per-turn message from the app (not stored in repo as one string): free-text DJ constraints and exclusion
+                lists, compact taste profile recap, ★ ratings for this session and Heard history, then instructions that
+                depend on exploration mode (balanced vs adventurous batches).
+              </p>
+            </aside>
+          </div>
+        </div>
       </section>
 
-      <section className="min-w-0 space-y-2">
+      <section className="min-w-0 space-y-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Response</h3>
-        <pre className={preBox}>{formatted || (err ? '(see error above)' : capForView(resRaw, 'Response') || '—')}</pre>
+        <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/70">
+          <div className="grid min-h-0 min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_min(280px,38%)] lg:divide-x lg:divide-zinc-800">
+            <pre className={`${preBox} border-0 rounded-none shadow-none bg-black/35`}>
+              {formatted || (err ? '(see error above)' : capForView(resRaw, 'Response') || '—')}
+            </pre>
+            <aside className="bg-zinc-900/40 p-4 lg:min-h-full">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-500/90">Margin note</p>
+              <p className="mt-1.5 text-sm leading-snug text-zinc-400">
+                Raw model output (usually JSON): suggested tracks plus optional Spotify/YouTube hints, coords, profile
+                prose, and <code className="text-zinc-500">suggested_artists</code>. The route parses this and resolves
+                searches client-side when needed.
+              </p>
+            </aside>
+          </div>
+        </div>
       </section>
     </div>
   )

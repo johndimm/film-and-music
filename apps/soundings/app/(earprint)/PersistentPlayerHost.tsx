@@ -109,7 +109,8 @@ function PersistentPlayerHostInner({
   }, [pathname, youtubeModeFromCookie])
 
   useEffect(() => {
-    let stripLoginTimer: ReturnType<typeof setTimeout> | undefined
+    // Browser timers are numeric ids; `@types/node` can widen `window.setTimeout` to `Timer`, so avoid that clash.
+    let stripLoginTimer: number | undefined
     if (!pathname.startsWith('/player')) return
     /**
      * YouTube-only host lock survives /player visits in React state (see `youtube_login` / ?youtube=1).

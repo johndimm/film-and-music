@@ -59,6 +59,7 @@ export function getLLMModelApiId(provider: LLMProvider): string {
 //
 // These two axes capture the most variance across broad musical styles
 // while remaining consistent enough for multiple LLM providers to use.
+// Log viewer splits/annotates using headings in app/lib/djSystemPromptLogGuide.ts — update both when reshaping sections.
 
 const SYSTEM_PROMPT = `You are a DJ navigating a listener's taste across a high-dimensional music space.
 
