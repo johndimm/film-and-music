@@ -2,6 +2,45 @@
 
 import { jsonFromResponse } from "./aiUtils";
 
+const WIKIMEDIA_UPSTREAM_UA =
+  "FilmAndMusicSoundings/1.0 (https://github.com/johndimm/film-and-music) constellations client";
+
+/** Only these hosts + path are forwarded through `/api/wikimedia` (SSR-safe allowlist mirrored on the route). */
+function isAllowedWikimediaApiUrl(urlString: string): boolean {
+  try {
+    const u = new URL(urlString);
+    if (u.protocol !== "https:") return false;
+    if (u.pathname !== "/w/api.php") return false;
+    const h = u.hostname;
+    return (
+      h === "en.wikipedia.org" ||
+      h === "commons.wikimedia.org" ||
+      h === "www.wikidata.org"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * In the browser: same-origin proxy so Wikimedia calls are not blocked (CORS, extensions, flaky clients).
+ * On the server path (unlikely for this module): sets a proper User-Agent for API etiquette.
+ */
+async function wikiApiFetch(url: string, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json,text/plain;q=0.9,*/*;q=0.8");
+  }
+
+  if (typeof window !== "undefined") {
+    if (!isAllowedWikimediaApiUrl(url)) return fetch(url, { ...init, headers });
+    return fetch(`/api/wikimedia?u=${encodeURIComponent(url)}`, { ...init, headers });
+  }
+
+  headers.set("User-Agent", WIKIMEDIA_UPSTREAM_UA);
+  return fetch(url, { ...init, headers });
+}
+
 type WikiImageCacheEntry = { url: string | null; pageId?: number; pageTitle?: string; misses?: number };
 
 // DuckDuckGo image search fallback (posters/cover art when Wikimedia lacks a usable image).
@@ -60,7 +99,7 @@ export const fetchWikipediaImage = async (query: string, context?: string): Prom
     for (const api of apis) {
       try {
         const url = `${api}?action=query&format=json&prop=imageinfo&titles=${encodeURIComponent(fileTitle)}&iiprop=url&iiurlwidth=500&origin=*`;
-        const res = await fetch(url, { signal });
+        const res = await wikiApiFetch(url, { signal });
         const data = (await jsonFromResponse(res)) as { query?: { pages?: Record<string, unknown> } } | null;
         if (!data) continue;
         const pages = data.query?.pages;
@@ -80,7 +119,7 @@ export const fetchWikipediaImage = async (query: string, context?: string): Prom
   const fetchWikidataImageForQid = async (qid: string, signal: AbortSignal): Promise<string | null> => {
     try {
       const wdUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&ids=${qid}&origin=*`;
-      const wdRes = await fetch(wdUrl, { signal });
+      const wdRes = await wikiApiFetch(wdUrl, { signal });
       const wdData = (await jsonFromResponse(wdRes)) as { entities?: Record<string, { claims?: any }> } | null;
       const claims = wdData?.entities?.[qid]?.claims;
       const p18 = claims?.P18?.[0]?.mainsnak?.datavalue?.value as string | undefined;
@@ -97,7 +136,7 @@ export const fetchWikipediaImage = async (query: string, context?: string): Prom
   const fetchWikidataImageForTitle = async (title: string, signal: AbortSignal): Promise<string | null> => {
     try {
       const ppUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles=${encodeURIComponent(title)}&redirects=1&origin=*`;
-      const ppRes = await fetch(ppUrl, { signal });
+      const ppRes = await wikiApiFetch(ppUrl, { signal });
       const ppData = await jsonFromResponse(ppRes);
       const pages = (ppData as { query?: { pages?: unknown } } | null)?.query?.pages;
       const page = pages ? (Object.values(pages)[0] as any) : null;
@@ -114,7 +153,7 @@ export const fetchWikipediaImage = async (query: string, context?: string): Prom
     try {
       // 1. Get page info, thumbnail, and all images in one go
       const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages|pageprops|images&titles=${encodeURIComponent(title)}&pithumbsize=500&imlimit=50&redirects=1&origin=*`;
-      const res = await fetch(url, { signal });
+      const res = await wikiApiFetch(url, { signal });
       const data = (await jsonFromResponse(res)) as { query?: { pages?: Record<string, unknown> } } | null;
       if (!data) return { url: null };
 
@@ -283,7 +322,7 @@ export const fetchWikipediaImage = async (query: string, context?: string): Prom
     // Attempt 1: Media-Aware Search + Direct Lookup
     // console.log(`🔍 [ImageSearch] Attempt 1 (Media-Aware): "${searchQuery}"`);
     const initialSearchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(searchQuery)}&srlimit=5&origin=*`;
-    const initialSearchRes = await fetch(initialSearchUrl, { signal: controller.signal });
+    const initialSearchRes = await wikiApiFetch(initialSearchUrl, { signal: controller.signal });
     const initialSearchData = (await jsonFromResponse(initialSearchRes)) as { query?: { search?: { title: string; snippet?: string }[] } } | null;
 
     let bestTitle = query;
@@ -342,7 +381,7 @@ export const fetchWikipediaImage = async (query: string, context?: string): Prom
     if (isPerson) {
       // console.log(`🔍 [ImageSearch] Attempt 2 (Commons for Person): "${baseTitle}"`);
       const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(baseTitle)}&srnamespace=6&srlimit=10&origin=*`;
-      const commonsRes = await fetch(commonsUrl, { signal: controller.signal });
+      const commonsRes = await wikiApiFetch(commonsUrl, { signal: controller.signal });
       const commonsData = (await jsonFromResponse(commonsRes)) as { query?: { search?: any[] } } | null;
       if (commonsData?.query?.search?.length) {
         const baseWords = baseTitle.toLowerCase().split(/\s+/).filter((w: string) => w.length > 1);
@@ -392,7 +431,7 @@ export const fetchWikipediaImage = async (query: string, context?: string): Prom
     if (!isPerson) {
       // console.log(`🔍 [ImageSearch] Attempt 4 (Commons): "${baseTitle}"`);
       const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(baseTitle)}&srnamespace=6&srlimit=10&origin=*`;
-      const commonsRes = await fetch(commonsUrl, { signal: controller.signal });
+      const commonsRes = await wikiApiFetch(commonsUrl, { signal: controller.signal });
       const commonsData = (await jsonFromResponse(commonsRes)) as { query?: { search?: any[] } } | null;
       if (commonsData?.query?.search?.length) {
         const baseWords = baseTitle.toLowerCase().split(/\s+/).filter((w: string) => w.length > 1);
@@ -432,7 +471,7 @@ export const fetchWikipediaImage = async (query: string, context?: string): Prom
     // Attempt 5: General Wikipedia Search
     // console.log(`🔍 [ImageSearch] Attempt 5 (Search): "${baseTitle}"`);
     const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(baseTitle)}&srlimit=5&origin=*`;
-    const searchRes = await fetch(searchUrl, { signal: controller.signal });
+    const searchRes = await wikiApiFetch(searchUrl, { signal: controller.signal });
     const searchData = (await jsonFromResponse(searchRes)) as { query?: { search?: { title: string }[] } } | null;
     if (searchData?.query?.search?.length) {
       for (const result of searchData.query.search) {
@@ -504,7 +543,7 @@ export const fetchWikipediaSummary = async (
     const tryDirectLookup = async (titleToFetch: string) => {
       try {
         const directUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|pageprops&exintro&explaintext&titles=${encodeURIComponent(titleToFetch)}&redirects=1&origin=*`;
-        const directRes = await fetch(directUrl);
+        const directRes = await wikiApiFetch(directUrl);
         const directData = (await jsonFromResponse(directRes)) as { query?: { pages?: unknown; redirects?: unknown } } | null;
         if (!directData) return null;
         const directPages = directData.query?.pages;
@@ -646,7 +685,7 @@ export const fetchWikipediaSummary = async (
 
     const avoidMedia = /\b(project|program|programme|operation|war|battle|campaign|treaty|scandal|scientist)\b/i.test(baseQuery);
     const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(searchQuery)}&srlimit=5&origin=*`;
-    const searchRes = await fetch(searchUrl);
+    const searchRes = await wikiApiFetch(searchUrl);
     const searchData = (await jsonFromResponse(searchRes)) as { query?: { search?: any[] } } | null;
 
     let bestTitle = query;
@@ -796,7 +835,7 @@ export const fetchWikipediaSummary = async (
           }
         }
         const summaryUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|pageprops&exintro&explaintext&titles=${encodeURIComponent(titleToTry)}&redirects=1&origin=*`;
-        const summaryRes = await fetch(summaryUrl);
+        const summaryRes = await wikiApiFetch(summaryUrl);
         const summaryData = (await jsonFromResponse(summaryRes)) as { query?: { pages?: unknown } } | null;
         if (!summaryData) continue;
         const pages = summaryData.query?.pages;
@@ -945,7 +984,7 @@ export const fetchWikipediaExtract = async (
     // when exchars is set (returns fewer chars than the article actually contains). We fetch
     // the full extract and truncate client-side instead.
     const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|pageprops&explaintext&titles=${encodeURIComponent(title)}&redirects=1&origin=*`;
-    const res = await fetch(url);
+    const res = await wikiApiFetch(url);
     const data = (await jsonFromResponse(res)) as { query?: { pages?: unknown } } | null;
     if (!data) return { extract: null, pageid: null, title: null };
     const pages = data.query?.pages;
@@ -996,7 +1035,7 @@ export const fetchWikidataCastForTitle = async (title: string, limit: number = 1
     let wikidataId: string | null = null;
     try {
       const pagepropsUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles=${encodeURIComponent(title)}&redirects=1&origin=*`;
-      const ppRes = await fetch(pagepropsUrl, { signal });
+      const ppRes = await wikiApiFetch(pagepropsUrl, { signal });
       const ppData = await jsonFromResponse(ppRes);
       const pages = (ppData as { query?: { pages?: unknown } } | null)?.query?.pages;
       if (pages) {
@@ -1016,7 +1055,7 @@ export const fetchWikidataCastForTitle = async (title: string, limit: number = 1
     if (!wikidataId) return [];
 
     const entityUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&ids=${encodeURIComponent(wikidataId)}&origin=*`;
-    const entRes = await fetch(entityUrl, { signal });
+    const entRes = await wikiApiFetch(entityUrl, { signal });
     const entData = await jsonFromResponse(entRes);
     const claims = (entData as { entities?: Record<string, { claims?: unknown }> } | null)?.entities?.[wikidataId]?.claims;
     if (!claims) return [];
@@ -1044,7 +1083,7 @@ const fetchWikidataLabels = async (ids: string[], signal: AbortSignal): Promise<
     const chunk = uniq.slice(i, i + 50);
     try {
       const url = `https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=labels&languages=en&ids=${encodeURIComponent(chunk.join("|"))}&origin=*`;
-      const res = await fetch(url, { signal });
+      const res = await wikiApiFetch(url, { signal });
       const data = (await jsonFromResponse(res)) as { entities?: Record<string, { labels?: { en?: { value?: string } } }> } | null;
       if (!data) continue;
       const entities = data?.entities || {};
@@ -1062,7 +1101,7 @@ const fetchWikidataLabels = async (ids: string[], signal: AbortSignal): Promise<
 const resolveWikidataIdBySearch = async (label: string, signal: AbortSignal): Promise<string | null> => {
   try {
     const url = `https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&language=en&limit=8&search=${encodeURIComponent(label)}&origin=*`;
-    const res = await fetch(url, { signal });
+    const res = await wikiApiFetch(url, { signal });
     const data = (await jsonFromResponse(res)) as { search?: any[] } | null;
     const results: any[] = data?.search || [];
     if (!results.length) return null;
@@ -1104,7 +1143,7 @@ export const fetchWikidataKeyPeopleForTitle = async (title: string): Promise<Wik
     let wikidataId: string | null = null;
     try {
       const pagepropsUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles=${encodeURIComponent(title)}&redirects=1&origin=*`;
-      const ppRes = await fetch(pagepropsUrl, { signal });
+      const ppRes = await wikiApiFetch(pagepropsUrl, { signal });
       const ppData = await jsonFromResponse(ppRes);
       const pages = (ppData as { query?: { pages?: unknown } } | null)?.query?.pages;
       if (pages) {
@@ -1136,7 +1175,7 @@ export const fetchWikidataKeyPeopleForTitle = async (title: string): Promise<Wik
 
     // 2) Pull key-people claims.
     const entityUrl = `https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&ids=${encodeURIComponent(wikidataId)}&origin=*`;
-    const entRes = await fetch(entityUrl, { signal });
+    const entRes = await wikiApiFetch(entityUrl, { signal });
     const entData = (await jsonFromResponse(entRes)) as { entities?: Record<string, { claims?: unknown }> } | null;
     const entity = entData?.entities?.[wikidataId];
     const claims = entity?.claims;
