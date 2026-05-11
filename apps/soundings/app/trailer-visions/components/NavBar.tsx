@@ -31,7 +31,7 @@ function NavBarInner() {
 
   return (
     <nav className="sticky top-0 z-40 w-full min-w-0 shrink-0 border-b border-zinc-800 bg-black/90 backdrop-blur-sm">
-      <div className="max-w-3xl mx-auto min-w-0 px-4 h-11 flex items-center gap-2">
+      <div className="mx-auto flex h-11 min-w-0 max-w-[min(100%,90rem)] items-center gap-2 px-3 sm:px-4 lg:px-8">
         <div className="hidden sm:flex shrink-0 items-center gap-1.5 mr-1">
           <FilmMusicHomeLink variant="playerDark" />
           <span className="text-zinc-600 select-none" aria-hidden>/</span>

@@ -5308,13 +5308,16 @@ export default function PlayerClient({
     !shouldHideStarterPillForFactoryOnlyList(channels)
 
   return (
-    <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col overflow-x-hidden">
+    <div data-guide="full-player" className="flex min-h-screen min-w-0 flex-col overflow-x-hidden bg-black text-white">
       {/* Global nav header */}
       {hideAppChrome ? null : <AppHeader />}
       {/* Channel tabs */}
       {channels.length > 0 && (
-        <div className="border-b border-zinc-900 max-h-[min(42vh,12rem)] overflow-y-auto overflow-x-hidden">
-        <div data-guide="channels" className="flex flex-wrap items-center gap-1 px-4 py-2 max-w-[800px] mx-auto">
+        <div className="max-h-[min(42vh,12rem)] overflow-y-auto overflow-x-hidden border-b border-zinc-900">
+        <div
+          data-guide="channels"
+          className="mx-auto flex max-w-[min(100%,56rem)] flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain px-3 py-2 sm:px-4 [-webkit-overflow-scrolling:touch] [scrollbar-color:rgba(63,63,70,0.6)_transparent] [scrollbar-width:thin]"
+        >
           {channels.map(ch => (
             <div
               key={ch.id}
@@ -5386,8 +5389,8 @@ export default function PlayerClient({
         </div>
       )}
       {channels.length > 0 && (
-        <div className="border-b border-zinc-900 px-4 py-2 max-w-[800px] mx-auto w-full flex gap-2 items-start">
-          <div className="relative flex-1 min-w-0">
+        <div className="mx-auto flex w-full max-w-[min(100%,56rem)] flex-col gap-2 border-b border-zinc-900 px-3 py-2 sm:flex-row sm:items-start sm:gap-2 sm:px-4">
+          <div className="relative min-h-0 min-w-0 flex-1">
             <textarea
               value={channelSearchText}
               onChange={e => {
@@ -5424,14 +5427,14 @@ export default function PlayerClient({
           <button
             type="button"
             onClick={() => void createChannelWithNotes(channelSearchText)}
-            className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-xs transition-colors whitespace-nowrap flex-shrink-0"
+            className="w-full shrink-0 rounded-lg bg-indigo-700 px-3 py-2.5 text-xs font-medium text-white transition-colors hover:bg-indigo-600 sm:w-auto sm:self-stretch sm:py-1.5"
           >
             New channel
           </button>
         </div>
       )}
       {(careerMode || careerLoadingArtist) && (
-        <div className="border-b border-indigo-800/60 bg-indigo-950/70 px-4 py-2 flex items-center gap-3 max-w-[800px] mx-auto w-full">
+        <div className="mx-auto flex w-full max-w-[min(100%,56rem)] flex-wrap items-center gap-2 border-b border-indigo-800/60 bg-indigo-950/70 px-3 py-2 sm:gap-3 sm:px-4">
           <span className="text-xl font-bold text-indigo-200 shrink-0">
             {careerMode?.artistName ?? careerLoadingArtist}
           </span>

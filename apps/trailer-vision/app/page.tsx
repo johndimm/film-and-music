@@ -1706,19 +1706,23 @@ const ChannelsToolbar = memo(function ChannelsToolbar({
   onRequestDeleteChannel: (ch: Channel) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2 items-center pb-1">
+    <div
+      className="flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-color:rgba(63,63,70,0.65)_transparent] [scrollbar-width:thin] lg:flex-col lg:items-stretch lg:overflow-y-auto lg:overflow-x-visible lg:pb-0 lg:[scrollbar-width:auto] lg:max-h-[min(72vh,560px)]"
+      role="toolbar"
+      aria-label="Channels"
+    >
       {!channels.some((ch) => ch.id !== "all") ? (
         <>
           <button
             type="button"
             onClick={onLoadStarter}
-            className="shrink-0 rounded-full border border-indigo-700 bg-indigo-950 px-4 py-2 text-sm font-semibold text-indigo-200 shadow-sm transition-colors hover:border-indigo-500 hover:bg-indigo-900"
+            className="shrink-0 rounded-full border border-indigo-700 bg-indigo-950 px-4 py-2 text-sm font-semibold text-indigo-200 shadow-sm transition-colors hover:border-indigo-500 hover:bg-indigo-900 lg:w-full lg:rounded-xl lg:py-2.5"
           >
             Load starter channels
           </button>
           <Link
             href="/channels?new=1"
-            className="shrink-0 flex size-8 items-center justify-center rounded-full border border-dashed border-zinc-700 bg-zinc-900 text-lg font-light leading-none text-zinc-400 transition-colors hover:border-indigo-500 hover:bg-indigo-950 hover:text-indigo-400"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-dashed border-zinc-700 bg-zinc-900 text-lg font-light leading-none text-zinc-400 transition-colors hover:border-indigo-500 hover:bg-indigo-950 hover:text-indigo-400 lg:size-9 lg:shrink-0 lg:self-center"
             title="Create a new channel"
             aria-label="Create a new channel"
           >
@@ -1731,7 +1735,7 @@ const ChannelsToolbar = memo(function ChannelsToolbar({
             <button
               type="button"
               onClick={onMergeStarters}
-              className="shrink-0 rounded-full border border-zinc-600 bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+              className="shrink-0 rounded-full border border-zinc-600 bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 lg:w-full lg:shrink-0 lg:rounded-xl lg:py-2 lg:text-left"
               title="Add bundled example channels you don’t already have (same as Settings → Starter channel pack)"
             >
               Merge starter pack
@@ -1740,18 +1744,18 @@ const ChannelsToolbar = memo(function ChannelsToolbar({
           {channels.map((ch) => {
             const deletable = ch.id !== "all";
             return (
-              <div key={ch.id} className="group relative shrink-0">
+              <div key={ch.id} className="group relative shrink-0 lg:w-full lg:min-w-0">
                 <button
                   type="button"
                   onClick={() => onSelectChannel(ch.id)}
                   aria-pressed={activeChannelId === ch.id}
                   aria-current={activeChannelId === ch.id ? "true" : undefined}
-                  className={`max-w-[240px] rounded-full py-1.5 text-sm font-semibold whitespace-nowrap transition-colors pl-3.5 ${
+                  className={`max-w-[240px] rounded-full py-1.5 pl-3.5 text-left text-sm font-semibold transition-colors lg:flex lg:max-w-none lg:w-full lg:items-center lg:rounded-xl lg:py-2 lg:pl-3 ${
                     deletable ? "pr-9" : "pr-3.5"
                   } ${
                     activeChannelId === ch.id
-                      ? "bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/90 ring-offset-2 ring-offset-black"
-                      : "bg-zinc-900 border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800"
+                      ? "bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/90 ring-offset-2 ring-offset-black lg:ring-offset-zinc-950"
+                      : "border border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800"
                   }`}
                 >
                   <span className="block truncate">{ch.name}</span>
@@ -1764,7 +1768,7 @@ const ChannelsToolbar = memo(function ChannelsToolbar({
                       e.stopPropagation();
                       onRequestDeleteChannel(ch);
                     }}
-                    className={`absolute right-1 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-sm leading-none opacity-100 transition-opacity sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 ${
+                    className={`absolute right-1 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-sm leading-none opacity-100 transition-opacity sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 lg:pointer-events-auto lg:opacity-100 ${
                       activeChannelId === ch.id
                         ? "text-zinc-300 hover:bg-white/10 hover:text-red-300"
                         : "text-zinc-500 hover:bg-red-900/30 hover:text-red-400"
@@ -1779,7 +1783,7 @@ const ChannelsToolbar = memo(function ChannelsToolbar({
           })}
           <Link
             href="/channels?new=1"
-            className="shrink-0 flex size-8 items-center justify-center rounded-full border border-dashed border-zinc-700 bg-zinc-900 text-lg font-light leading-none text-zinc-400 transition-colors hover:border-indigo-500 hover:bg-indigo-950 hover:text-indigo-400"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-dashed border-zinc-700 bg-zinc-900 text-lg font-light leading-none text-zinc-400 transition-colors hover:border-indigo-500 hover:bg-indigo-950 hover:text-indigo-400 lg:size-9 lg:shrink-0 lg:self-center"
             title="Create a new channel"
             aria-label="Create a new channel"
           >
@@ -3366,58 +3370,64 @@ export default function Home() {
   const llmActive = llmPrefetchInFlight > 0 || isAdvancingCard;
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center bg-black px-4 py-6 sm:py-10">
-      <div className="w-full max-w-3xl space-y-4 sm:space-y-6">
-        <ChannelsToolbar
-          channels={channels}
-          activeChannelId={activeChannelId}
-          onLoadStarter={loadStarterChannelsFromFactory}
-          onMergeStarters={mergeStartersKeepActive}
-          showMergeStarterPack={factoryPackFullyMerged === false}
-          onSelectChannel={selectChannel}
-          onRequestDeleteChannel={requestDeleteChannel}
-        />
+    <div className="flex min-h-screen w-full flex-col bg-black px-3 py-3 sm:px-4 sm:py-5 lg:px-8 lg:py-6">
+      <div className="mx-auto flex w-full max-w-[min(100%,90rem)] flex-col gap-4 lg:grid lg:grid-cols-[minmax(12rem,19rem)_minmax(0,1fr)] lg:items-start lg:gap-x-8 lg:gap-y-0 xl:grid-cols-[minmax(13rem,20rem)_minmax(0,1fr)] xl:gap-x-12">
+        <aside className="min-w-0 space-y-3 lg:sticky lg:top-11 lg:z-10 lg:self-start lg:pr-1">
+          <p className="hidden text-[11px] font-semibold uppercase tracking-wide text-zinc-500 lg:block">
+            Channels
+          </p>
+          <ChannelsToolbar
+            channels={channels}
+            activeChannelId={activeChannelId}
+            onLoadStarter={loadStarterChannelsFromFactory}
+            onMergeStarters={mergeStartersKeepActive}
+            showMergeStarterPack={factoryPackFullyMerged === false}
+            onSelectChannel={selectChannel}
+            onRequestDeleteChannel={requestDeleteChannel}
+          />
 
-        <div className="rounded-2xl border border-zinc-800/90 bg-zinc-950/80 p-2 sm:p-2.5">
-          <div className="flex flex-row items-center gap-1.5 sm:gap-2">
-            <label htmlFor="channel-what-you-want" className="sr-only">
-              Optional text for a new channel — does not edit the current channel
-            </label>
-            <div className="relative min-w-0 flex-1">
-              <input
-                id="channel-what-you-want"
-                type="text"
-                autoComplete="off"
-                value={newChannelDraft}
-                onChange={(e) => setNewChannelDraft(e.target.value.replace(/\r?\n/g, " "))}
-                placeholder="Optional seed for a new channel…"
-                className="h-9 w-full rounded-lg border border-zinc-600 bg-zinc-900 py-0 pl-2.5 pr-8 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 sm:h-10 sm:pl-3 sm:pr-9"
-              />
-              {newChannelDraft.length > 0 && (
-                <button
-                  type="button"
-                  onPointerDown={(e) => e.preventDefault()}
-                  onClick={() => setNewChannelDraft("")}
-                  className="absolute right-1 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-base leading-none text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200 sm:right-1.5 sm:h-7 sm:w-7"
-                  title="Clear"
-                  aria-label="Clear"
-                >
-                  ×
-                </button>
-              )}
+          <div className="rounded-2xl border border-zinc-800/90 bg-zinc-950/80 p-2 sm:p-2.5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+              <label htmlFor="channel-what-you-want" className="sr-only">
+                Optional text for a new channel — does not edit the current channel
+              </label>
+              <div className="relative min-w-0 flex-1">
+                <input
+                  id="channel-what-you-want"
+                  type="text"
+                  autoComplete="off"
+                  value={newChannelDraft}
+                  onChange={(e) => setNewChannelDraft(e.target.value.replace(/\r?\n/g, " "))}
+                  placeholder="Optional seed for a new channel…"
+                  className="h-9 w-full rounded-lg border border-zinc-600 bg-zinc-900 py-0 pl-2.5 pr-8 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 sm:h-10 sm:pl-3 sm:pr-9"
+                />
+                {newChannelDraft.length > 0 && (
+                  <button
+                    type="button"
+                    onPointerDown={(e) => e.preventDefault()}
+                    onClick={() => setNewChannelDraft("")}
+                    className="absolute right-1 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-base leading-none text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200 sm:right-1.5 sm:h-7 sm:w-7"
+                    title="Clear"
+                    aria-label="Clear"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={createChannelFromHomePrompt}
+                disabled={!newChannelDraft.trim()}
+                title="Create a new channel with this text"
+                className="h-9 w-full shrink-0 rounded-lg bg-indigo-600 px-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 disabled:pointer-events-none disabled:opacity-40 sm:h-10 sm:w-auto sm:px-3 sm:text-sm lg:w-full"
+              >
+                New channel
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={createChannelFromHomePrompt}
-              disabled={!newChannelDraft.trim()}
-              title="Create a new channel with this text"
-              className="h-9 shrink-0 rounded-lg bg-indigo-600 px-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 disabled:pointer-events-none disabled:opacity-40 sm:h-10 sm:px-3 sm:text-sm"
-            >
-              New channel
-            </button>
           </div>
-        </div>
+        </aside>
 
+        <div className="flex min-w-0 flex-col gap-4 sm:gap-5 lg:min-h-0">
         {/* Movie card */}
         <div
           ref={cardRef}
@@ -3761,12 +3771,18 @@ export default function Home() {
             <p className="text-sm text-zinc-600 italic">Rate a few titles to build your taste profile.</p>
           )}
           <div className="flex gap-3 mt-3 pt-3 border-t border-zinc-800">
-            <Link href={`/channels${activeChannelId && activeChannelId !== "all" ? `?select=${activeChannelId}` : ""}`} className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors">Edit Channel</Link>
+            <Link
+              href={`/channels${activeChannelId && activeChannelId !== "all" ? `?select=${activeChannelId}` : ""}`}
+              className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              Edit Channel
+            </Link>
             <span className="text-zinc-700 text-sm select-none">·</span>
             <Link href="/channel-history" className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors">Channel History</Link>
           </div>
         </div>
 
+        </div>
       </div>
 
       {/* Fetch error with retry */}
